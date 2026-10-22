@@ -14,13 +14,73 @@ extension BoardTask {
 }
 
 extension Board {
-  public func listing(columns: [Column]) -> String {
-    let sections = columns.map { column -> String in
-      let tasks = self.tasks(in: column)
-      let body = tasks.isEmpty ? "  —" : tasks.map { "  " + $0.line.replacingOccurrences(of: "\n", with: "\n  ") }
-        .joined(separator: "\n")
-      return "\(column.title) (\(column.rawValue)):\n\(body)"
+  // "▶ #12 Название (project) [high] · ждёт #3, #5 · 2/4"
+  public func summary(_ task: BoardTask, withNotes: Bool = false) -> String {
+    let marker: String
+    switch task.column {
+    case .doing: marker = "▶"
+    case .done: marker = "✓"
+    case .todo:
+      if isBlocked(task) {
+        marker = "⛔"
+      } else if children(of: task.id).contains(where: { $0.column != .done }) {
+        marker = "□"  // group: done through its subtasks
+      } else {
+        marker = "○"
+      }
     }
-    return sections.joined(separator: "\n\n")
+    var line = "\(marker) #\(task.id) \(task.title)"
+    if let project = task.project { line += " (\(project))" }
+    if task.priority != .normal { line += " [\(task.priority.rawValue)]" }
+    let waiting = waitingOn(task)
+    if !waiting.isEmpty { line += " · ждёт " + waiting.map { "#\($0.id)" }.joined(separator: ", ") }
+    if let progress = progress(of: task.id) { line += " · \(progress.done)/\(progress.total)" }
+    if withNotes, let notes = task.notes { line += "\n    " + notes.replacingOccurrences(of: "\n", with: "\n    ") }
+    return line
+  }
+
+  // The whole board as a tree. Done tasks are hidden unless asked for; a done task with open subtasks stays.
+  public func tree(includeDone: Bool) -> String {
+    let ids = Set(tasks.map(\.id))
+    let roots = ordered(tasks.filter { $0.parent == nil || !ids.contains($0.parent!) })
+    var lines: [String] = []
+    func visible(_ task: BoardTask) -> Bool {
+      includeDone || task.column != .done || children(of: task.id).contains(where: visible)
+    }
+    func walk(_ task: BoardTask, depth: Int) {
+      guard visible(task) else { return }
+      lines.append(String(repeating: "  ", count: depth) + summary(task))
+      for child in children(of: task.id) { walk(child, depth: depth + 1) }
+    }
+    roots.forEach { walk($0, depth: 0) }
+    guard !lines.isEmpty else { return "Доска пуста." }
+    return lines.joined(separator: "\n") + "\n\n▶ в работе · ○ можно брать · ⛔ ждёт другие · □ группа, закрывается подзадачами · ✓ готово · n/m — подзадачи готовы"
+  }
+
+  // What can be taken right now.
+  public func readyListing() -> String {
+    let ready = ordered(tasks.filter(isReady))
+    guard !ready.isEmpty else { return "Сейчас брать нечего: всё готово или ждёт других задач." }
+    return ready.map { task in
+      let path = ancestors(of: task.id).reversed().map(\.title).joined(separator: " › ")
+      return summary(task) + (path.isEmpty ? "" : "\n    в «\(path)»")
+    }.joined(separator: "\n")
+  }
+
+  // One task with everything around it.
+  public func details(_ id: Int) throws -> String {
+    guard let task = task(id) else { throw BoardError.noTask(id) }
+    var lines = [summary(task, withNotes: true), "Колонка: \(task.column.title), источник: \(task.source)"]
+    let path = ancestors(of: id).reversed().map { "#\($0.id) \($0.title)" }
+    if !path.isEmpty { lines.append("Входит в: " + path.joined(separator: " › ")) }
+    let children = children(of: id)
+    if !children.isEmpty { lines.append("Подзадачи:\n" + children.map { "  " + summary($0) }.joined(separator: "\n")) }
+    let dependencies = task.dependsOn.compactMap { self.task($0) }
+    if !dependencies.isEmpty {
+      lines.append("Зависит от:\n" + dependencies.map { "  " + summary($0) }.joined(separator: "\n"))
+    }
+    let dependents = dependents(of: id)
+    if !dependents.isEmpty { lines.append("Её ждут:\n" + dependents.map { "  " + summary($0) }.joined(separator: "\n")) }
+    return lines.joined(separator: "\n")
   }
 }

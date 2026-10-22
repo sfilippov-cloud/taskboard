@@ -54,7 +54,8 @@ struct ColumnView: View {
   @State private var targeted = false
 
   var body: some View {
-    let tasks = model.board.tasks(in: column)
+    let board = model.board
+    let tasks = column == .done ? board.tasks(in: .done) : board.ordered(board.tasks.filter { $0.column == column })
     VStack(alignment: .leading, spacing: 8) {
       HStack {
         Text(column.title).font(.headline)
@@ -63,7 +64,7 @@ struct ColumnView: View {
       ScrollView {
         LazyVStack(spacing: 6) {
           ForEach(tasks) { task in
-            CardView(task: task)
+            CardView(task: task, board: board)
               .draggable(String(task.id))
               .onTapGesture(count: 2) { edit(task) }
               .contextMenu { menu(for: task) }
@@ -108,10 +109,18 @@ struct ColumnView: View {
 
 struct CardView: View {
   let task: BoardTask
+  let board: Board
 
   var body: some View {
+    let waiting = board.waitingOn(task)
     VStack(alignment: .leading, spacing: 4) {
+      if let parent = task.parent.flatMap({ board.task($0) }) {
+        Text("↳ #\(parent.id) \(parent.title)").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+      }
       HStack(alignment: .firstTextBaseline) {
+        if task.column == .todo && !waiting.isEmpty {
+          Image(systemName: "lock").foregroundStyle(.secondary).font(.caption)
+        }
         if task.priority == .high { Image(systemName: "flag.fill").foregroundStyle(.orange).font(.caption) }
         Text(task.title).fontWeight(task.priority == .high ? .semibold : .regular)
           .strikethrough(task.column == .done, color: .secondary)
@@ -121,7 +130,15 @@ struct CardView: View {
       if let notes = task.notes {
         Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3)
       }
+      if !waiting.isEmpty && task.column != .done {
+        Text("ждёт " + waiting.map { "#\($0.id) \($0.title)" }.joined(separator: ", "))
+          .font(.caption2).foregroundStyle(.orange).lineLimit(2)
+      }
       HStack(spacing: 6) {
+        if let progress = board.progress(of: task.id) {
+          Label("\(progress.done)/\(progress.total)", systemImage: "list.bullet.indent")
+            .font(.caption2).foregroundStyle(.secondary)
+        }
         if let project = task.project {
           Text(project).font(.caption2).padding(.horizontal, 6).padding(.vertical, 1)
             .background(Capsule().fill(Color.accentColor.opacity(0.15)))

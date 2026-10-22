@@ -61,23 +61,32 @@ struct WidgetView: View {
   private let limit = 10
 
   var body: some View {
-    let doing = model.board.tasks(in: .doing)
-    let todo = model.board.tasks(in: .todo)
-    let shown = Array((doing + todo).prefix(limit))
+    let board = model.board
+    let doing = board.tasks(in: .doing)
+    let todo = board.tasks(in: .todo)
+    // What can actually be done: a parent with open subtasks is represented by them.
+    let actionable = board.ordered(
+      (doing + todo).filter { task in !board.children(of: task.id).contains { $0.column != .done } })
+    let shown = Array(actionable.prefix(limit))
 
     VStack(alignment: .leading, spacing: 6) {
-      header(doing: doing.count, todo: todo.count)
+      header(
+        doing: doing.count, ready: actionable.filter { $0.column == .todo && !board.isBlocked($0) }.count,
+        blocked: actionable.filter { $0.column == .todo && board.isBlocked($0) }.count)
       ActivityLine(activity: model.activity)
       if shown.isEmpty {
         Text("Пусто. F13 — надиктовать задачу")
           .font(.caption).foregroundStyle(.secondary)
       }
       ForEach(shown) { task in
-        WidgetRow(task: task) {
+        WidgetRow(
+          task: task, blocked: board.isBlocked(task),
+          parent: task.parent.flatMap { board.task($0) }?.title
+        ) {
           model.change { board in _ = try board.update(task.id) { $0.column = .done } }
         }
       }
-      let hidden = doing.count + todo.count - shown.count
+      let hidden = actionable.count - shown.count
       if hidden > 0 {
         Text("ещё \(hidden)…").font(.caption2).foregroundStyle(.secondary)
       }
@@ -93,13 +102,14 @@ struct WidgetView: View {
     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { resize($0) }
   }
 
-  private func header(doing: Int, todo: Int) -> some View {
+  private func header(doing: Int, ready: Int, blocked: Int) -> some View {
     Button(action: openBoard) {
       HStack(spacing: 6) {
         Image(systemName: "checklist")
         Text("Задачи").font(.headline)
         Spacer()
-        Text("\(doing) в работе · \(todo)").font(.caption).foregroundStyle(.secondary)
+        Text("\(doing) в работе · \(ready) можно" + (blocked > 0 ? " · \(blocked) ждут" : ""))
+          .font(.caption).foregroundStyle(.secondary)
       }
       .contentShape(Rectangle())
     }
@@ -110,20 +120,28 @@ struct WidgetView: View {
 
 struct WidgetRow: View {
   let task: BoardTask
+  let blocked: Bool
+  let parent: String?
   let complete: () -> Void
 
   var body: some View {
     HStack(alignment: .firstTextBaseline, spacing: 6) {
       Button(action: complete) {
-        Image(systemName: task.column == .doing ? "circle.inset.filled" : "circle")
+        Image(systemName: task.column == .doing ? "circle.inset.filled" : blocked ? "lock" : "circle")
           .foregroundStyle(task.column == .doing ? Color.accentColor : .secondary)
       }
       .buttonStyle(.plain)
-      .help("Готово")
-      Text(task.title)
-        .font(.callout)
-        .fontWeight(task.priority == .high ? .semibold : .regular)
-        .lineLimit(2)
+      .help(blocked ? "Ждёт другие задачи; клик — всё равно готово" : "Готово")
+      VStack(alignment: .leading, spacing: 1) {
+        Text(task.title)
+          .font(.callout)
+          .fontWeight(task.priority == .high ? .semibold : .regular)
+          .lineLimit(2)
+        if let parent {
+          Text("↳ \(parent)").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        }
+      }
+      .opacity(blocked ? 0.55 : 1)
       Spacer(minLength: 0)
       if let project = task.project {
         Text(project).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
