@@ -1,0 +1,151 @@
+// A translucent always-on-top list of tasks in the top-right corner of the main screen.
+// The panel never takes focus; clicking a circle marks the task done, clicking the header opens the board.
+import AppKit
+import SwiftUI
+import TaskboardCore
+
+final class WidgetPanel: NSPanel {
+  init(model: AppModel, openBoard: @escaping () -> Void) {
+    super.init(
+      contentRect: NSRect(x: 0, y: 0, width: 300, height: 120), styleMask: [.borderless, .nonactivatingPanel],
+      backing: .buffered, defer: false)
+    isFloatingPanel = true
+    level = .floating
+    collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+    backgroundColor = .clear
+    isOpaque = false
+    hasShadow = false
+    hidesOnDeactivate = false
+    // Kept out of screen shares and recordings unless turned off: defaults write com.lozhka13.taskboard widgetCapturable -bool true
+    sharingType = UserDefaults.standard.bool(forKey: "widgetCapturable") ? .readOnly : .none
+
+    let hosting = NSHostingView(rootView: WidgetView(model: model, openBoard: openBoard))
+    hosting.sizingOptions = [.preferredContentSize]
+    contentView = hosting
+    NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: self, queue: .main) {
+      [weak self] _ in MainActor.assumeIsolated { self?.pin() }
+    }
+    NotificationCenter.default.addObserver(
+      forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+    ) { [weak self] _ in MainActor.assumeIsolated { self?.pin() } }
+  }
+
+  override var canBecomeKey: Bool { false }
+  override var canBecomeMain: Bool { false }
+
+  // Top-right corner under the menu bar.
+  func pin() {
+    guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
+    let visible = screen.visibleFrame
+    let margin: CGFloat = 12
+    setFrameTopLeftPoint(NSPoint(x: visible.maxX - frame.width - margin, y: visible.maxY - margin))
+  }
+}
+
+struct WidgetView: View {
+  let model: AppModel
+  let openBoard: () -> Void
+  @State private var hovering = false
+
+  private let limit = 10
+
+  var body: some View {
+    let doing = model.board.tasks(in: .doing)
+    let todo = model.board.tasks(in: .todo)
+    let shown = Array((doing + todo).prefix(limit))
+
+    VStack(alignment: .leading, spacing: 6) {
+      header(doing: doing.count, todo: todo.count)
+      ActivityLine(activity: model.activity)
+      if shown.isEmpty {
+        Text("Пусто. ⌃⌥⌘T — надиктовать задачу")
+          .font(.caption).foregroundStyle(.secondary)
+      }
+      ForEach(shown) { task in
+        WidgetRow(task: task) {
+          model.change { board in _ = try board.update(task.id) { $0.column = .done } }
+        }
+      }
+      let hidden = doing.count + todo.count - shown.count
+      if hidden > 0 {
+        Text("ещё \(hidden)…").font(.caption2).foregroundStyle(.secondary)
+      }
+    }
+    .padding(12)
+    .frame(width: 300, alignment: .leading)
+    .background(.regularMaterial.opacity(hovering ? 1 : 0.85), in: RoundedRectangle(cornerRadius: 14))
+    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.1)))
+    .opacity(hovering ? 1 : 0.9)
+    .animation(.easeOut(duration: 0.15), value: hovering)
+    .onHover { hovering = $0 }
+    .fixedSize(horizontal: false, vertical: true)
+  }
+
+  private func header(doing: Int, todo: Int) -> some View {
+    Button(action: openBoard) {
+      HStack(spacing: 6) {
+        Image(systemName: "checklist")
+        Text("Задачи").font(.headline)
+        Spacer()
+        Text("\(doing) в работе · \(todo)").font(.caption).foregroundStyle(.secondary)
+      }
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .help("Открыть доску (⌃⌥⌘K)")
+  }
+}
+
+struct WidgetRow: View {
+  let task: BoardTask
+  let complete: () -> Void
+
+  var body: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 6) {
+      Button(action: complete) {
+        Image(systemName: task.column == .doing ? "circle.inset.filled" : "circle")
+          .foregroundStyle(task.column == .doing ? Color.accentColor : .secondary)
+      }
+      .buttonStyle(.plain)
+      .help("Готово")
+      Text(task.title)
+        .font(.callout)
+        .fontWeight(task.priority == .high ? .semibold : .regular)
+        .lineLimit(2)
+      Spacer(minLength: 0)
+      if let project = task.project {
+        Text(project).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+      }
+    }
+  }
+}
+
+struct ActivityLine: View {
+  let activity: Activity
+
+  var body: some View {
+    switch activity {
+    case .idle:
+      EmptyView()
+    case .recording(let since):
+      TimelineView(.periodic(from: since, by: 1)) { context in
+        let seconds = Int(context.date.timeIntervalSince(since))
+        Label(
+          String(format: "Запись %d:%02d — ⌃⌥⌘T закончить, Esc отмена", seconds / 60, seconds % 60),
+          systemImage: "mic.fill"
+        )
+        .font(.caption).foregroundStyle(.red)
+      }
+    case .transcribing:
+      Label("Расшифровка…", systemImage: "waveform").font(.caption).foregroundStyle(.secondary)
+    case .thinking(let transcript):
+      VStack(alignment: .leading, spacing: 2) {
+        Label("Claude раскладывает по доске…", systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
+        Text("«\(transcript)»").font(.caption2).foregroundStyle(.secondary).lineLimit(3)
+      }
+    case .message(let text, let isError):
+      Label(text, systemImage: isError ? "exclamationmark.triangle" : "checkmark")
+        .font(.caption).foregroundStyle(isError ? .orange : .secondary).lineLimit(4)
+    }
+  }
+}
