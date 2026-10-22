@@ -28,7 +28,7 @@ cat > "$APP/Contents/Info.plist" <<PL
   <key>CFBundleDevelopmentRegion</key><string>ru</string>
   <key>LSMinimumSystemVersion</key><string>26.0</string>
   <key>LSUIElement</key><true/>
-  <key>NSMicrophoneUsageDescription</key><string>Taskboard записывает голосовую заметку по ⌃⌥⌘T.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Taskboard записывает голосовую заметку по F13.</string>
   <key>NSSpeechRecognitionUsageDescription</key><string>Taskboard расшифровывает голосовые заметки на этом маке.</string>
 </dict>
 </plist>

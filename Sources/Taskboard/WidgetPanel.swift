@@ -58,7 +58,7 @@ struct WidgetView: View {
       header(doing: doing.count, todo: todo.count)
       ActivityLine(activity: model.activity)
       if shown.isEmpty {
-        Text("Пусто. ⌃⌥⌘T — надиктовать задачу")
+        Text("Пусто. F13 — надиктовать задачу")
           .font(.caption).foregroundStyle(.secondary)
       }
       ForEach(shown) { task in
@@ -131,7 +131,7 @@ struct ActivityLine: View {
       TimelineView(.periodic(from: since, by: 1)) { context in
         let seconds = Int(context.date.timeIntervalSince(since))
         Label(
-          String(format: "Запись %d:%02d — ⌃⌥⌘T закончить, Esc отмена", seconds / 60, seconds % 60),
+          String(format: "Запись %d:%02d — F13 закончить, Esc отмена", seconds / 60, seconds % 60),
           systemImage: "mic.fill"
         )
         .font(.caption).foregroundStyle(.red)

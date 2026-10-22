@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if UserDefaults.standard.object(forKey: "widgetVisible") as? Bool ?? true { widget.orderFrontRegardless() }
 
     hotKeys = [
-      HotKey(keyCode: kVK_ANSI_T, modifiers: shortcut, id: 1) { [weak self] in self?.toggleRecording() },
+      HotKey(keyCode: kVK_F13, modifiers: 0, id: 1) { [weak self] in self?.toggleRecording() },
       HotKey(keyCode: kVK_ANSI_K, modifiers: shortcut, id: 2) { [weak self] in self?.showBoard() },
     ]
   }
@@ -38,7 +38,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func buildMenu() -> NSMenu {
     let menu = NSMenu()
     menu.delegate = self
-    menu.addItem(item("Надиктовать задачу", #selector(toggleRecordingAction), key: "t"))
+    let record = item("Надиктовать задачу", #selector(toggleRecordingAction))
+    record.keyEquivalent = String(Character(UnicodeScalar(NSF13FunctionKey)!))
+    record.keyEquivalentModifierMask = []
+    menu.addItem(record)
     menu.addItem(item("Открыть доску", #selector(showBoardAction), key: "k"))
     menu.addItem(item("Показывать виджет", #selector(toggleWidget)))
     menu.addItem(.separator())

@@ -14,7 +14,7 @@ struct BoardView: View {
         TextField("Новая задача — Enter", text: $newTitle)
           .textFieldStyle(.roundedBorder)
           .onSubmit(add)
-        Text("⌃⌥⌘T — голосом").font(.caption).foregroundStyle(.secondary)
+        Text("F13 — голосом").font(.caption).foregroundStyle(.secondary)
       }
       .padding(12)
       HStack(alignment: .top, spacing: 12) {
