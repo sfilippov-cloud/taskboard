@@ -5,7 +5,7 @@ import SwiftUI
 import TaskboardCore
 
 final class WidgetPanel: NSPanel {
-  init(model: AppModel, openBoard: @escaping () -> Void) {
+  init(model: AppModel, openBoard: @escaping () -> Void, hide: @escaping () -> Void) {
     super.init(
       contentRect: NSRect(x: 0, y: 0, width: 300, height: 120), styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered, defer: false)
@@ -20,7 +20,9 @@ final class WidgetPanel: NSPanel {
     sharingType = UserDefaults.standard.bool(forKey: "widgetCapturable") ? .readOnly : .none
 
     // The window follows the measured height of the content; SwiftUI's own sizing clipped wrapped rows.
-    let view = WidgetView(model: model, openBoard: openBoard) { [weak self] height in self?.fit(height: height) }
+    let view = WidgetView(model: model, openBoard: openBoard, hide: hide) { [weak self] height in
+      self?.fit(height: height)
+    }
     let hosting = NSHostingView(rootView: view.frame(maxHeight: .infinity, alignment: .top))
     hosting.sizingOptions = []
     contentView = hosting
@@ -55,6 +57,7 @@ final class WidgetPanel: NSPanel {
 struct WidgetView: View {
   let model: AppModel
   let openBoard: () -> Void
+  let hide: () -> Void
   let resize: (CGFloat) -> Void
   @State private var hovering = false
 
@@ -115,6 +118,17 @@ struct WidgetView: View {
     }
     .buttonStyle(.plain)
     .help("Открыть доску (⌃⌥⌘K)")
+    .overlay(alignment: .topTrailing) {
+      if hovering {
+        Button(action: hide) {
+          Image(systemName: "xmark.circle.fill").font(.system(size: 14)).foregroundStyle(.secondary)
+            .background(Circle().fill(.regularMaterial))
+        }
+        .buttonStyle(.plain)
+        .help("Скрыть виджет (⌃⌥⌘W)")
+        .offset(x: 4, y: -4)
+      }
+    }
   }
 }
 

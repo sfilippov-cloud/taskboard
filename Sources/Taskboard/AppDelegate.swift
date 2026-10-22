@@ -23,13 +23,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     statusItem.menu = buildMenu()
     updateIcon()
 
-    widget = WidgetPanel(model: model, openBoard: { [weak self] in self?.showBoard() })
+    widget = WidgetPanel(
+      model: model, openBoard: { [weak self] in self?.showBoard() }, hide: { [weak self] in self?.toggleWidget() })
     widget.pin()
-    if UserDefaults.standard.object(forKey: "widgetVisible") as? Bool ?? true { widget.orderFrontRegardless() }
+    model.onActivityChange = { [weak self] in
+      self?.updateWidgetVisibility()
+      self?.updateIcon()
+    }
+    updateWidgetVisibility()
 
     hotKeys = [
       HotKey(keyCode: kVK_F13, modifiers: 0, id: 1) { [weak self] in self?.toggleRecording() },
       HotKey(keyCode: kVK_ANSI_K, modifiers: shortcut, id: 2) { [weak self] in self?.showBoard() },
+      HotKey(keyCode: kVK_ANSI_W, modifiers: shortcut, id: 4) { [weak self] in self?.toggleWidget() },
     ]
   }
 
@@ -43,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     record.keyEquivalentModifierMask = []
     menu.addItem(record)
     menu.addItem(item("Открыть доску", #selector(showBoardAction), key: "k"))
-    menu.addItem(item("Показывать виджет", #selector(toggleWidget)))
+    menu.addItem(item("Показывать виджет", #selector(toggleWidget), key: "w"))
     menu.addItem(.separator())
     menu.addItem(item("Запускать при входе", #selector(toggleLoginItem)))
     menu.addItem(item("Папка с данными", #selector(openDataFolder)))
@@ -78,10 +84,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   @objc private func toggleRecordingAction() { toggleRecording() }
   @objc private func showBoardAction() { showBoard() }
 
+  // Hidden by the user; still shown while a voice note is recorded and processed.
+  private var widgetHidden: Bool {
+    get { !(UserDefaults.standard.object(forKey: "widgetVisible") as? Bool ?? true) }
+    set { UserDefaults.standard.set(!newValue, forKey: "widgetVisible") }
+  }
+
   @objc private func toggleWidget() {
-    let visible = !widget.isVisible
-    if visible { widget.orderFrontRegardless() } else { widget.orderOut(nil) }
-    UserDefaults.standard.set(visible, forKey: "widgetVisible")
+    widgetHidden.toggle()
+    updateWidgetVisibility()
+  }
+
+  private func updateWidgetVisibility() {
+    if !widgetHidden || model.activity != .idle {
+      widget.orderFrontRegardless()
+    } else {
+      widget.orderOut(nil)
+    }
   }
 
   @objc private func toggleLoginItem() {
@@ -200,7 +219,7 @@ extension AppDelegate: NSMenuDelegate {
   func menuNeedsUpdate(_ menu: NSMenu) {
     for item in menu.items {
       switch item.action {
-      case #selector(toggleWidget): item.state = widget.isVisible ? .on : .off
+      case #selector(toggleWidget): item.state = widgetHidden ? .off : .on
       case #selector(toggleLoginItem): item.state = SMAppService.mainApp.status == .enabled ? .on : .off
       case #selector(toggleRecordingAction): item.title = recorder.isRecording ? "Закончить запись" : "Надиктовать задачу"
       default: break

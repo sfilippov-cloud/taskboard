@@ -15,7 +15,10 @@ enum Activity: Equatable {
 @Observable
 final class AppModel {
   private(set) var board = BoardStore.load()
-  var activity: Activity = .idle
+  var activity: Activity = .idle {
+    didSet { if activity != oldValue { onActivityChange?() } }
+  }
+  @ObservationIgnored var onActivityChange: (() -> Void)?
 
   @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
   @ObservationIgnored private var messageTimer: Timer?
