@@ -19,12 +19,11 @@ final class WidgetPanel: NSPanel {
     // Kept out of screen shares and recordings unless turned off: defaults write com.lozhka13.taskboard widgetCapturable -bool true
     sharingType = UserDefaults.standard.bool(forKey: "widgetCapturable") ? .readOnly : .none
 
-    let hosting = NSHostingView(rootView: WidgetView(model: model, openBoard: openBoard))
-    hosting.sizingOptions = [.preferredContentSize]
+    // The window follows the measured height of the content; SwiftUI's own sizing clipped wrapped rows.
+    let view = WidgetView(model: model, openBoard: openBoard) { [weak self] height in self?.fit(height: height) }
+    let hosting = NSHostingView(rootView: view.frame(maxHeight: .infinity, alignment: .top))
+    hosting.sizingOptions = []
     contentView = hosting
-    NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: self, queue: .main) {
-      [weak self] _ in MainActor.assumeIsolated { self?.pin() }
-    }
     NotificationCenter.default.addObserver(
       forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
     ) { [weak self] _ in MainActor.assumeIsolated { self?.pin() } }
@@ -33,18 +32,30 @@ final class WidgetPanel: NSPanel {
   override var canBecomeKey: Bool { false }
   override var canBecomeMain: Bool { false }
 
-  // Top-right corner under the menu bar.
+  private let margin: CGFloat = 12
+  private var contentHeight: CGFloat = 120
+
+  private var screenFrame: NSRect? { (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame }
+
+  func fit(height: CGFloat) {
+    contentHeight = ceil(height)
+    pin()
+  }
+
+  // Top-right corner under the menu bar, no taller than the screen.
   func pin() {
-    guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
-    let visible = screen.visibleFrame
-    let margin: CGFloat = 12
-    setFrameTopLeftPoint(NSPoint(x: visible.maxX - frame.width - margin, y: visible.maxY - margin))
+    guard let visible = screenFrame else { return }
+    let height = min(contentHeight, visible.height - margin * 2)
+    setFrame(
+      NSRect(x: visible.maxX - frame.width - margin, y: visible.maxY - margin - height, width: frame.width, height: height),
+      display: true)
   }
 }
 
 struct WidgetView: View {
   let model: AppModel
   let openBoard: () -> Void
+  let resize: (CGFloat) -> Void
   @State private var hovering = false
 
   private let limit = 10
@@ -79,6 +90,7 @@ struct WidgetView: View {
     .animation(.easeOut(duration: 0.15), value: hovering)
     .onHover { hovering = $0 }
     .fixedSize(horizontal: false, vertical: true)
+    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { resize($0) }
   }
 
   private func header(doing: Int, todo: Int) -> some View {
