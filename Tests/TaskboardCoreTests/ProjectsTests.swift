@@ -3,6 +3,13 @@ import Testing
 
 @testable import TaskboardCore
 
+// Runs `body` against a throwaway data folder that only this test can see.
+func withTempStore<T>(_ body: () throws -> T) throws -> T {
+  let dir = FileManager.default.temporaryDirectory.appendingPathComponent("taskboard-test-\(UUID().uuidString)")
+  defer { try? FileManager.default.removeItem(at: dir) }
+  return try BoardStore.$directoryOverride.withValue(dir) { try body() }
+}
+
 @Suite struct ProjectsTests {
   @Test func slugIsSafeAndTransliterated() {
     #expect(Project.slug(for: "Платформа Wingform") == "platforma-wingform")
@@ -72,17 +79,7 @@ import Testing
   }
 }
 
-@Suite(.serialized) struct StoreOnDiskTests {
-  func withTempStore(_ body: () throws -> Void) throws {
-    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("taskboard-test-\(UUID().uuidString)")
-    setenv("TASKBOARD_DIR", dir.path, 1)
-    defer {
-      unsetenv("TASKBOARD_DIR")
-      try? FileManager.default.removeItem(at: dir)
-    }
-    try body()
-  }
-
+@Suite struct StoreOnDiskTests {
   @Test func journalFollowsBoardChanges() throws {
     try withTempStore {
       let project = try BoardStore.change(source: "voice") { try $0.addProject(name: "Бэкенд") }

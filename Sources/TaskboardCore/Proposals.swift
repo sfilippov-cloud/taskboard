@@ -1,0 +1,146 @@
+// The proposals queue: things an assistant run (email sync) noticed but must not decide on its own.
+// A proposal waits in board.json until the user accepts it (it is applied and journaled) or rejects it
+// (it is dropped and remembered, so the same thing isn't proposed again).
+import Foundation
+
+public enum ProposalKind: String, Codable, Sendable {
+  case addTask, moveTask
+}
+
+public struct Proposal: Codable, Identifiable, Equatable, Sendable {
+  public var id: Int
+  public var kind: ProposalKind
+  public var title: String  // addTask: the new task's title; moveTask: the task's title when proposed
+  public var notes: String?
+  public var project: String?
+  public var priority: Priority
+  public var taskID: Int?  // moveTask
+  public var column: Column?  // moveTask: where to
+  public var reason: String  // one line: why it is proposed
+  public var sourceKind: String  // "email"
+  public var sourceRef: String?  // e.g. the Gmail thread id
+  public var sourceTitle: String?  // e.g. the subject
+  public var sourceLink: String?
+  public var created: Date
+
+  // Same thing proposed again → same key.
+  public var key: String {
+    let subject = kind == .addTask ? Proposal.normalize(title) : "\(taskID ?? 0)>\(column?.rawValue ?? "")"
+    return "\(kind.rawValue)|\(subject)"
+  }
+
+  static func normalize(_ text: String) -> String {
+    text.lowercased().components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
+  }
+}
+
+public struct ProposalDraft: Sendable {
+  public var title: String
+  public var notes: String?
+  public var project: String?
+  public var priority: Priority
+  public var reason: String
+  public var sourceKind: String
+  public var sourceRef: String?
+  public var sourceTitle: String?
+  public var sourceLink: String?
+
+  public init(
+    title: String, notes: String? = nil, project: String? = nil, priority: Priority = .normal, reason: String,
+    sourceKind: String, sourceRef: String? = nil, sourceTitle: String? = nil, sourceLink: String? = nil
+  ) {
+    self.title = title
+    self.notes = notes
+    self.project = project
+    self.priority = priority
+    self.reason = reason
+    self.sourceKind = sourceKind
+    self.sourceRef = sourceRef
+    self.sourceTitle = sourceTitle
+    self.sourceLink = sourceLink
+  }
+}
+
+extension Board {
+  public func proposal(_ id: Int) -> Proposal? { proposals.first { $0.id == id } }
+
+  @discardableResult
+  public mutating func proposeTask(_ draft: ProposalDraft, now: Date = Date()) throws -> Proposal {
+    let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !title.isEmpty else { throw BoardError.emptyName }
+    let normalized = Proposal.normalize(title)
+    if tasks.contains(where: { $0.column != .done && Proposal.normalize($0.title) == normalized }) {
+      throw BoardError.duplicateProposal("an open task with this title already exists")
+    }
+    return try enqueue(
+      Proposal(
+        id: 0, kind: .addTask, title: title, notes: draft.notes.nonEmpty, project: try resolveProject(draft.project),
+        priority: draft.priority, taskID: nil, column: nil, reason: draft.reason, sourceKind: draft.sourceKind,
+        sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle, sourceLink: draft.sourceLink, created: now))
+  }
+
+  @discardableResult
+  public mutating func proposeMove(_ taskID: Int, to column: Column, _ draft: ProposalDraft, now: Date = Date()) throws
+    -> Proposal
+  {
+    guard let task = task(taskID) else { throw BoardError.noTask(taskID) }
+    guard task.column != column else {
+      throw BoardError.duplicateProposal("#\(taskID) is already in “\(column.title)”")
+    }
+    return try enqueue(
+      Proposal(
+        id: 0, kind: .moveTask, title: task.title, notes: draft.notes.nonEmpty, project: task.project,
+        priority: task.priority, taskID: taskID, column: column, reason: draft.reason, sourceKind: draft.sourceKind,
+        sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle, sourceLink: draft.sourceLink, created: now))
+  }
+
+  private mutating func enqueue(_ proposal: Proposal) throws -> Proposal {
+    var proposal = proposal
+    if proposals.contains(where: { $0.key == proposal.key }) {
+      throw BoardError.duplicateProposal("the same proposal is already waiting")
+    }
+    if dismissedProposals.contains(proposal.key) {
+      throw BoardError.duplicateProposal("the user already rejected this")
+    }
+    proposal.id = nextProposalID
+    nextProposalID += 1
+    proposals.append(proposal)
+    return proposal
+  }
+
+  // Applies the proposal; returns what it changed (nil when the task it was about is gone).
+  @discardableResult
+  public mutating func acceptProposal(_ id: Int) throws -> BoardTask? {
+    guard let proposal = proposal(id) else { throw BoardError.noProposal(id) }
+    proposals.removeAll { $0.id == id }
+    switch proposal.kind {
+    case .addTask:
+      var notes = proposal.notes ?? ""
+      if let subject = proposal.sourceTitle ?? proposal.sourceRef {
+        notes += (notes.isEmpty ? "" : "\n\n") + "From \(proposal.sourceKind): \(subject)"
+        if let link = proposal.sourceLink { notes += "\n\(link)" }
+      }
+      return add(
+        title: proposal.title, notes: notes, project: proposal.project, priority: proposal.priority,
+        source: proposal.sourceKind)
+    case .moveTask:
+      guard let taskID = proposal.taskID, let column = proposal.column, task(taskID) != nil else { return nil }
+      return try update(taskID) { $0.column = column }
+    }
+  }
+
+  public mutating func rejectProposal(_ id: Int) throws {
+    guard let proposal = proposal(id) else { throw BoardError.noProposal(id) }
+    proposals.removeAll { $0.id == id }
+    dismissedProposals.append(proposal.key)
+    if dismissedProposals.count > 300 { dismissedProposals.removeFirst(dismissedProposals.count - 300) }
+  }
+
+  // A line for lists: "+ Title" or "#12 → Done: Title".
+  public func line(_ proposal: Proposal) -> String {
+    switch proposal.kind {
+    case .addTask: "+ \(proposal.title)" + (proposal.project.map { " (\($0))" } ?? "")
+    case .moveTask: "#\(proposal.taskID ?? 0) → \(proposal.column?.title ?? "?"): \(proposal.title)"
+    }
+  }
+}

@@ -3,7 +3,12 @@
 import Foundation
 
 public enum BoardStore {
+  // Set only by tests: a task-local value belongs to one test, so parallel tests can't see each other's
+  // folder (an environment variable is process-wide, and once leaked a test into the real data).
+  @TaskLocal public static var directoryOverride: URL?
+
   public static var directory: URL {
+    if let directoryOverride { return directoryOverride }
     if let custom = ProcessInfo.processInfo.environment["TASKBOARD_DIR"], !custom.isEmpty {
       return URL(fileURLWithPath: custom, isDirectory: true)
     }
@@ -24,29 +29,35 @@ public enum BoardStore {
     return board
   }
 
-  // Loads, changes and saves the board under the lock; returns what the change returned.
-  // Task changes (new, moved between columns, deleted) are also written to the journal as `source`.
-  @discardableResult
-  public static func change<T>(source: String = "app", _ body: (inout Board) throws -> T) throws -> T {
+  // Holds the store's lock (shared by every file in the data folder) while `body` runs.
+  public static func locked<T>(_ body: () throws -> T) throws -> T {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let fd = open(lockURL.path, O_CREAT | O_RDWR, 0o600)
     guard fd >= 0 else { throw CocoaError(.fileWriteNoPermission) }
     defer { close(fd) }
     flock(fd, LOCK_EX)
     defer { flock(fd, LOCK_UN) }
+    return try body()
+  }
 
-    var board = load()
-    let before = board
-    let result = try body(&board)
-    for change in board.changes(since: before) {
-      ProjectLog.append(change.text, source: source, project: change.project.flatMap { board.project(matching: $0) })
+  // Loads, changes and saves the board under the lock; returns what the change returned.
+  // Task changes (new, moved between columns, deleted) are also written to the journal as `source`.
+  @discardableResult
+  public static func change<T>(source: String = "app", _ body: (inout Board) throws -> T) throws -> T {
+    try locked {
+      var board = load()
+      let before = board
+      let result = try body(&board)
+      for change in board.changes(since: before) {
+        ProjectLog.append(change.text, source: source, project: change.project.flatMap { board.project(matching: $0) })
+      }
+      let stale = board.takeStaleDone()
+      if !stale.isEmpty { archive(stale) }
+      if board != before {
+        try encoder.encode(board).write(to: boardURL, options: .atomic)
+      }
+      return result
     }
-    let stale = board.takeStaleDone()
-    if !stale.isEmpty { archive(stale) }
-    if board != before {
-      try encoder.encode(board).write(to: boardURL, options: .atomic)
-    }
-    return result
   }
 
   static func archive(_ tasks: [BoardTask]) {

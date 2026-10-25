@@ -85,10 +85,13 @@ public struct Board: Codable, Equatable, Sendable {
   public var nextID = 1
   public var tasks: [BoardTask] = []
   public var projects: [Project] = []
+  public var proposals: [Proposal] = []  // waiting for the user's yes/no
+  public var nextProposalID = 1
+  public var dismissedProposals: [String] = []  // keys of rejected proposals, so they don't come back
 
   public init() {}
 
-  enum CodingKeys: String, CodingKey { case nextID, tasks, projects }
+  enum CodingKeys: String, CodingKey { case nextID, tasks, projects, proposals, nextProposalID, dismissedProposals }
 
   // Доски из версий без проектов: projects отсутствует.
   public init(from decoder: Decoder) throws {
@@ -96,6 +99,9 @@ public struct Board: Codable, Equatable, Sendable {
     nextID = try container.decodeIfPresent(Int.self, forKey: .nextID) ?? 1
     tasks = try container.decodeIfPresent([BoardTask].self, forKey: .tasks) ?? []
     projects = try container.decodeIfPresent([Project].self, forKey: .projects) ?? []
+    proposals = try container.decodeIfPresent([Proposal].self, forKey: .proposals) ?? []
+    nextProposalID = try container.decodeIfPresent(Int.self, forKey: .nextProposalID) ?? 1
+    dismissedProposals = try container.decodeIfPresent([String].self, forKey: .dismissedProposals) ?? []
   }
 
   public func tasks(in column: Column) -> [BoardTask] {
@@ -159,6 +165,8 @@ public enum BoardError: LocalizedError {
   case unknownProject(String, known: [String])
   case duplicateProject(String)
   case emptyName
+  case noProposal(Int)
+  case duplicateProposal(String)
 
   public var errorDescription: String? {
     switch self {
@@ -173,6 +181,8 @@ public enum BoardError: LocalizedError {
         + ". For a genuinely new project use create_project — only if the user really started a new one."
     case .duplicateProject(let name): "Project “\(name)” already exists"
     case .emptyName: "A name is required"
+    case .noProposal(let id): "There is no proposal #\(id)"
+    case .duplicateProposal(let why): "Not proposed: \(why)"
     }
   }
 }
