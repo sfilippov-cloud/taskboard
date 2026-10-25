@@ -25,11 +25,11 @@ cat > "$APP/Contents/Info.plist" <<PL
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>
-  <key>CFBundleDevelopmentRegion</key><string>ru</string>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>LSMinimumSystemVersion</key><string>26.0</string>
   <key>LSUIElement</key><true/>
-  <key>NSMicrophoneUsageDescription</key><string>Taskboard записывает голосовую заметку по F13.</string>
-  <key>NSSpeechRecognitionUsageDescription</key><string>Taskboard расшифровывает голосовые заметки на этом маке.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Taskboard records a voice note when you press the dictation hotkey.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Taskboard transcribes your voice notes on this Mac.</string>
 </dict>
 </plist>
 PL

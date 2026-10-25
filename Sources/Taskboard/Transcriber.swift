@@ -11,16 +11,16 @@ enum TranscriberError: LocalizedError {
 
   var errorDescription: String? {
     switch self {
-    case .unsupported(let locale): "Распознавание \(locale) на этом маке недоступно"
-    case .notAuthorized: "Разрешите Taskboard в Системных настройках → Конфиденциальность → Распознавание речи"
-    case .empty: "В записи не распознано ни слова"
+    case .unsupported(let locale): "Speech recognition for \(locale) isn't available on this Mac"
+    case .notAuthorized: "Allow Taskboard in System Settings → Privacy & Security → Speech Recognition"
+    case .empty: "No words were recognized in the recording"
     }
   }
 }
 
 enum Transcriber {
   static var locale: Locale {
-    Locale(identifier: UserDefaults.standard.string(forKey: "transcriptionLocale") ?? "ru-RU")
+    Locale(identifier: UserDefaults.standard.string(forKey: "transcriptionLocale") ?? "en-US")
   }
 
   static func transcribe(_ audio: URL) async throws -> String {

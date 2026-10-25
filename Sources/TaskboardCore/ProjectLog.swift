@@ -38,7 +38,7 @@ public enum ProjectLog {
     for line in lines.dropFirst() { entry += "\n  " + line }
     var data = Data()
     if !FileManager.default.fileExists(atPath: url.path) {
-      data.append(Data("# Журнал: \(project?.name ?? "общий")\n\n".utf8))
+      data.append(Data("# Journal: \(project?.name ?? "general")\n\n".utf8))
     }
     data.append(Data((entry + "\n").utf8))
     if let handle = try? FileHandle(forWritingTo: url) {

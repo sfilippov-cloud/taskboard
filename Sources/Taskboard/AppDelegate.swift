@@ -44,14 +44,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func buildMenu() -> NSMenu {
     let menu = NSMenu()
     menu.delegate = self
-    menu.addItem(item("Надиктовать задачу", #selector(toggleRecordingAction), key: "r"))
-    menu.addItem(item("Открыть доску", #selector(showBoardAction), key: "k"))
-    menu.addItem(item("Показывать виджет", #selector(toggleWidget), key: "w"))
+    menu.addItem(item("Dictate a task", #selector(toggleRecordingAction), key: "r"))
+    menu.addItem(item("Open board", #selector(showBoardAction), key: "k"))
+    menu.addItem(item("Show widget", #selector(toggleWidget), key: "w"))
     menu.addItem(.separator())
-    menu.addItem(item("Запускать при входе", #selector(toggleLoginItem)))
-    menu.addItem(item("Папка с данными", #selector(openDataFolder)))
+    menu.addItem(item("Launch at login", #selector(toggleLoginItem)))
+    menu.addItem(item("Data folder", #selector(openDataFolder)))
     menu.addItem(.separator())
-    menu.addItem(NSMenuItem(title: "Выйти", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+    menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     return menu
   }
 
@@ -105,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     do {
       if service.status == .enabled { try service.unregister() } else { try service.register() }
     } catch {
-      model.show("Автозапуск: \(error.localizedDescription)", isError: true)
+      model.show("Launch at login: \(error.localizedDescription)", isError: true)
     }
   }
 
@@ -119,7 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       let window = NSWindow(
         contentRect: NSRect(x: 0, y: 0, width: 900, height: 560),
         styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
-      window.title = "Задачи"
+      window.title = "Tasks"
       window.isReleasedWhenClosed = false
       window.contentView = NSHostingView(rootView: BoardView(model: model))
       window.setFrameAutosaveName("Board")
@@ -142,13 +142,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func startRecording() async {
     guard await VoiceRecorder.requestPermission() else {
-      model.show("Нет доступа к микрофону: Системные настройки → Конфиденциальность → Микрофон", isError: true)
+      model.show("No microphone access: System Settings → Privacy & Security → Microphone", isError: true)
       return
     }
     do {
       try recorder.start()
     } catch {
-      model.show("Не удалось начать запись: \(error.localizedDescription)", isError: true)
+      model.show("Couldn't start recording: \(error.localizedDescription)", isError: true)
       return
     }
     NSSound(named: "Tink")?.play()
@@ -160,7 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     cancelKey = nil
     recorder.cancel()
     NSSound(named: "Funk")?.play()
-    model.show("Запись отменена")
+    model.show("Recording cancelled")
     updateIcon()
   }
 
@@ -184,7 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       try? transcript.write(to: audio.deletingPathExtension().appendingPathExtension("txt"), atomically: true, encoding: .utf8)
       try? FileManager.default.removeItem(at: audio)
     } catch {
-      model.show("Расшифровка: \(error.localizedDescription). Запись: \(audio.lastPathComponent)", isError: true)
+      model.show("Transcription: \(error.localizedDescription). Recording: \(audio.lastPathComponent)", isError: true)
       return
     }
 
@@ -195,14 +195,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       model.reload()
       if BoardStore.load() == before {
         saveRaw(transcript)
-        model.show("Claude ничего не изменил (\(summary)) — заметка сохранена задачей", isError: true)
+        model.show("Claude changed nothing (\(summary)) — the note was saved as a task", isError: true)
       } else {
         model.show(summary)
       }
     } catch {
       // Never lose a note: without Claude it lands on the board as is.
       saveRaw(transcript)
-      model.show("\(error.localizedDescription) — заметка сохранена задачей как есть", isError: true)
+      model.show("\(error.localizedDescription) — the note was saved as a task as is", isError: true)
     }
   }
 
@@ -218,7 +218,7 @@ extension AppDelegate: NSMenuDelegate {
       switch item.action {
       case #selector(toggleWidget): item.state = widgetHidden ? .off : .on
       case #selector(toggleLoginItem): item.state = SMAppService.mainApp.status == .enabled ? .on : .off
-      case #selector(toggleRecordingAction): item.title = recorder.isRecording ? "Закончить запись" : "Надиктовать задачу"
+      case #selector(toggleRecordingAction): item.title = recorder.isRecording ? "Stop recording" : "Dictate a task"
       default: break
       }
     }

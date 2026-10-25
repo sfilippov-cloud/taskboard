@@ -1,70 +1,79 @@
 # Taskboard
 
-Личный канбан в menu bar macOS: голосом по хоткею, Claude (профиль wingform) раскладывает сказанное
-по задачам, список — полупрозрачным виджетом в правом верхнем углу.
+A personal kanban in the macOS menu bar: dictate with a hotkey, and Claude (the wingform profile) sorts what
+you said into tasks. The list shows as a translucent widget in the top-right corner.
 
-| Хоткей | Что делает |
+| Hotkey | What it does |
 |---|---|
-| `⌃⌥⌘R` | начать / закончить голосовую заметку |
-| `Esc` | отменить запись (только пока она идёт) |
-| `⌃⌥⌘K` | открыть доску |
-| `⌃⌥⌘W` | скрыть / показать виджет (или ✕ при наведении) |
+| `⌃⌥⌘R` | start / finish a voice note |
+| `Esc` | cancel a recording (only while it runs) |
+| `⌃⌥⌘K` | open the board |
+| `⌃⌥⌘W` | hide / show the widget (or ✕ on hover) |
 
-Заметка → расшифровка на маке (Speech, русский) → `claude -p` с `CLAUDE_CONFIG_DIR=~/.claude-wingform`,
-которому доступны только инструменты `taskboard` → задачи на доске. Если Claude недоступен или ничего не
-изменил, заметка всё равно попадает на доску задачей как есть.
+Note → on-Mac transcription (Speech) → `claude -p` with `CLAUDE_CONFIG_DIR=~/.claude-wingform`, which only
+has the `taskboard` tools → tasks on the board. If Claude is unavailable or changed nothing, the note still
+lands on the board as a task, as is.
 
-Скрытый виджет сам появляется на время записи и разбора заметки и прячется обратно.
-Виджет: «В работе», затем «Сделать», до 10 строк; кружок — отметить готовым, заголовок — открыть доску.
-Скрыт от записи экрана и демонстрации (`defaults write com.lozhka13.taskboard widgetCapturable -bool true` — показать).
-Доска: перетаскивание между колонками, двойной клик — правка, правый клик — приоритет, удаление.
-«Готово» старше недели уходит в `archive.jsonl`.
+A hidden widget shows itself during recording and processing, then hides again.
+Widget: "Doing", then "To do", up to 10 rows; the circle marks a task done, the header opens the board.
+It is hidden from screen recording and sharing (`defaults write com.lozhka13.taskboard widgetCapturable -bool true` shows it).
+Board: drag between columns, double-click to edit, right-click for priority and delete.
+"Done" older than a week moves to `archive.jsonl`.
 
-## Проекты, журнал, документы
+## Language
 
-Задачи группируются по проектам. В окне доски: выбор проекта сверху (`+` — новый, ползунки — свойства),
-вкладки **Доска / Журнал / Документы**.
+Interface, messages and everything Claude writes are in English. Dictation is recognized as `en-US` by
+default; for another language set `transcriptionLocale`, e.g.
+`defaults write com.lozhka13.taskboard transcriptionLocale ru-RU`. Claude understands notes in either
+language and answers in English.
 
-- **Журнал** — Markdown на проект (`projects/<slug>/log.md`), общий — `log.md` в папке данных. Изменения
-  задач (новая, перенесена между колонками, удалена) пишутся автоматически, откуда бы они ни пришли: из
-  виджета, доски, голоса или Claude. Остальное (итоги встреч, решения, сроки) пишет Claude через `log_entry`,
-  или вы сами во вкладке «Журнал».
-- **Документы и заметки**: перетащите файл на виджет или в окно доски, нажмите «Файл» / «Заметка». Файл
-  копируется в `projects/<slug>/docs/` (без проекта — в `inbox/`), Claude читает текст (txt, md, pdf, rtf, docx),
-  пишет итоги в журнал, из явных следующих шагов заводит задачи (не больше семи), без проекта — определяет его
-  по содержимому или оставляет во входящих. Если Claude недоступен, файл всё равно сохранён и отмечен в журнале.
-- Claude видит документы как **данные**, не как инструкции; ему доступны только инструменты `taskboard`.
-- Проект должен существовать: неизвестное название MCP отклоняет и перечисляет известные, новый заводится
-  только явно (`create_project`).
+## Projects, journal, documents
 
-Инструменты MCP: `list_projects`, `create_project`, `update_project`, `log_entry`, `read_log`,
+Tasks are grouped by project. In the board window: the project picker on top (`+` — new, sliders — settings)
+and the tabs **Board / Journal / Documents**.
+
+- **Journal** — a Markdown file per project (`projects/<slug>/log.md`); the general one is `log.md` in the
+  data folder. Task changes (new, moved between columns, deleted) are written automatically wherever they
+  come from: widget, board, voice or Claude. The rest (meeting outcomes, decisions, deadlines) is written by
+  Claude through `log_entry`, or by you in the Journal tab.
+- **Documents and notes**: drop a file on the widget or the board window, press "File" / "Note". The file is
+  copied to `projects/<slug>/docs/` (without a project — to `inbox/`), Claude reads the text (txt, md, pdf,
+  rtf, docx), logs the gist, creates tasks from explicit next steps (at most seven), and, with no project
+  given, picks one by content or leaves the document in the inbox. If Claude is unavailable the file is
+  still saved and noted in the journal.
+- Claude sees documents as **data**, not instructions, and has only the `taskboard` tools.
+- A project must exist: MCP rejects an unknown name and lists the known ones; a new one is created only
+  explicitly (`create_project`).
+
+MCP tools: `list_projects`, `create_project`, `update_project`, `log_entry`, `read_log`,
 `list_documents`, `read_document`, `file_document`.
 
-## Установка
+## Install
 
 ```bash
-./install.sh   # собирает, ставит в /Applications, подключает MCP taskboard к ~/.claude-wingform
+./install.sh   # builds, installs to /Applications, connects the taskboard MCP to ~/.claude-wingform
 ```
 
-При первой записи macOS спросит доступ к микрофону и распознаванию речи. Автозапуск — в меню.
+On the first recording macOS asks for microphone and speech-recognition access. Launch at login is in the menu.
 
 ## Claude
 
-MCP-сервер `taskboard-mcp` лежит в бандле и подключён только к профилю wingform вместе со скиллом
-`skills/taskboard` (симлинк в `~/.claude-wingform/skills`). В обычной сессии `wingform` можно сказать
-«закинь на доску…», «разложи по задачам…», «что можно брать?» или «отметь #12 готовой».
+The `taskboard-mcp` MCP server lives in the bundle and is connected only to the wingform profile, together
+with the `skills/taskboard` skill (a symlink in `~/.claude-wingform/skills`). In a regular `wingform` session
+you can say "put this on the board…", "break this into tasks…", "what can I take?" or "mark #12 done".
 
-Задачи образуют дерево (`parent` — подзадача) и зависят друг от друга (`depends_on` — нельзя начать,
-пока те не готовы). Инструменты: `list_tasks` (дерево или `view: ready` — что можно брать), `get_task`,
-`add_task`, `add_plan` (ветвистая работа целиком, атомарно, с проверкой циклов), `update_task`,
-`move_task` (сообщает, что разблокировалось), `delete_task`. Как раскладывать — в `skills/taskboard/SKILL.md`.
+Tasks form a tree (`parent` — a subtask) and depend on each other (`depends_on` — can't start until those
+are done). Tools: `list_tasks` (tree, or `view: ready` — what can be taken), `get_task`, `add_task`,
+`add_plan` (branching work at once, atomic, with cycle checks), `update_task`, `move_task` (reports what got
+unblocked), `delete_task`. How to lay work out is in `skills/taskboard/SKILL.md`.
 
-Виджет показывает то, что можно делать: в работе, затем доступные, затем заблокированные (с замком);
-группы с открытыми подзадачами в нём не дублируются — их название подписано под подзадачами.
+The widget shows what can be done: doing, then available, then blocked (with a lock); groups with open
+subtasks aren't duplicated in it — their title is shown under the subtasks.
 
-## Данные
+## Data
 
-`~/Library/Application Support/Taskboard/`: `board.json` (доска и реестр проектов, пишется под flock
-приложением и MCP), `archive.jsonl`, `voice/*.txt` (расшифровки), `log.md` (общий журнал), `inbox/`,
-`projects/<slug>/{log.md,docs/}`. Названия проектов из старых задач становятся проектами сами. Настройки (`defaults write com.lozhka13.taskboard …`):
-`claudeModel` (sonnet), `claudeConfigDir`, `claudeWorkingDir`, `claudePath`, `transcriptionLocale` (ru-RU).
+`~/Library/Application Support/Taskboard/`: `board.json` (the board and the project registry, written under
+flock by the app and MCP), `archive.jsonl`, `voice/*.txt` (transcripts), `log.md` (general journal),
+`inbox/`, `projects/<slug>/{log.md,docs/}`. Project names from old tasks become projects on their own.
+Settings (`defaults write com.lozhka13.taskboard …`): `claudeModel` (sonnet), `claudeConfigDir`,
+`claudeWorkingDir`, `claudePath`, `transcriptionLocale` (en-US).

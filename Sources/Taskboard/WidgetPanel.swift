@@ -78,7 +78,7 @@ struct WidgetView: View {
         blocked: actionable.filter { $0.column == .todo && board.isBlocked($0) }.count)
       ActivityLine(activity: model.activity)
       if shown.isEmpty {
-        Text("Пусто. ⌃⌥⌘R — надиктовать задачу")
+        Text("Empty. ⌃⌥⌘R — dictate a task")
           .font(.caption).foregroundStyle(.secondary)
       }
       ForEach(shown) { task in
@@ -91,7 +91,7 @@ struct WidgetView: View {
       }
       let hidden = actionable.count - shown.count
       if hidden > 0 {
-        Text("ещё \(hidden)…").font(.caption2).foregroundStyle(.secondary)
+        Text("\(hidden) more…").font(.caption2).foregroundStyle(.secondary)
       }
     }
     .padding(12)
@@ -106,7 +106,7 @@ struct WidgetView: View {
       model.ingest(urls: files, project: nil)
       return !files.isEmpty
     }
-    .help("Перетащите сюда файл — он попадёт во входящие, Claude разберёт и отнесёт к проекту")
+    .help("Drop a file here — it goes to the inbox, Claude reads it and files it under a project")
     .fixedSize(horizontal: false, vertical: true)
     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { resize($0) }
   }
@@ -115,15 +115,15 @@ struct WidgetView: View {
     Button(action: openBoard) {
       HStack(spacing: 6) {
         Image(systemName: "checklist")
-        Text("Задачи").font(.headline)
+        Text("Tasks").font(.headline)
         Spacer()
-        Text("\(doing) в работе · \(ready) можно" + (blocked > 0 ? " · \(blocked) ждут" : ""))
+        Text("\(doing) doing · \(ready) ready" + (blocked > 0 ? " · \(blocked) waiting" : ""))
           .font(.caption).foregroundStyle(.secondary)
       }
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .help("Открыть доску (⌃⌥⌘K)")
+    .help("Open the board (⌃⌥⌘K)")
     .overlay(alignment: .topTrailing) {
       if hovering {
         Button(action: hide) {
@@ -131,7 +131,7 @@ struct WidgetView: View {
             .background(Circle().fill(.regularMaterial))
         }
         .buttonStyle(.plain)
-        .help("Скрыть виджет (⌃⌥⌘W)")
+        .help("Hide the widget (⌃⌥⌘W)")
         .offset(x: 4, y: -4)
       }
     }
@@ -151,7 +151,7 @@ struct WidgetRow: View {
           .foregroundStyle(task.column == .doing ? Color.accentColor : .secondary)
       }
       .buttonStyle(.plain)
-      .help(blocked ? "Ждёт другие задачи; клик — всё равно готово" : "Готово")
+      .help(blocked ? "Waiting on other tasks; click to mark done anyway" : "Done")
       VStack(alignment: .leading, spacing: 1) {
         Text(task.title)
           .font(.callout)
@@ -181,21 +181,21 @@ struct ActivityLine: View {
       TimelineView(.periodic(from: since, by: 1)) { context in
         let seconds = Int(context.date.timeIntervalSince(since))
         Label(
-          String(format: "Запись %d:%02d — ⌃⌥⌘R закончить, Esc отмена", seconds / 60, seconds % 60),
+          String(format: "Recording %d:%02d — ⌃⌥⌘R to finish, Esc to cancel", seconds / 60, seconds % 60),
           systemImage: "mic.fill"
         )
         .font(.caption).foregroundStyle(.red)
       }
     case .transcribing:
-      Label("Расшифровка…", systemImage: "waveform").font(.caption).foregroundStyle(.secondary)
+      Label("Transcribing…", systemImage: "waveform").font(.caption).foregroundStyle(.secondary)
     case .thinking(let transcript):
       VStack(alignment: .leading, spacing: 2) {
-        Label("Claude раскладывает по доске…", systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
+        Label("Claude is sorting it onto the board…", systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
         Text("«\(transcript)»").font(.caption2).foregroundStyle(.secondary).lineLimit(3)
       }
     case .ingesting(let name):
       VStack(alignment: .leading, spacing: 2) {
-        Label("Claude разбирает документ…", systemImage: "doc.text.magnifyingglass").font(.caption)
+        Label("Claude is reading the document…", systemImage: "doc.text.magnifyingglass").font(.caption)
           .foregroundStyle(.secondary)
         Text(name).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
       }

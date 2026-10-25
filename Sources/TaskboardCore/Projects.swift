@@ -7,9 +7,9 @@ public enum ProjectStatus: String, Codable, CaseIterable, Sendable {
 
   public var title: String {
     switch self {
-    case .active: "Активен"
-    case .paused: "На паузе"
-    case .archived: "В архиве"
+    case .active: "Active"
+    case .paused: "Paused"
+    case .archived: "Archived"
     }
   }
 }
@@ -130,7 +130,7 @@ extension Board {
       }
     }
     for task in before.tasks where !current.contains(task.id) {
-      result.append((task.project, "− #\(task.id) \(task.title) удалена"))
+      result.append((task.project, "− #\(task.id) \(task.title) deleted"))
     }
     return result
   }

@@ -67,8 +67,8 @@ import Testing
     _ = try board.remove(gone.id)
     let texts = board.changes(since: before).map(\.text)
     #expect(texts.contains("+ #3 Новая"))
-    #expect(texts.contains("#1 Остаётся → Готово"))
-    #expect(texts.contains("− #2 Уйдёт удалена"))
+    #expect(texts.contains("#1 Остаётся → Done"))
+    #expect(texts.contains("− #2 Уйдёт deleted"))
   }
 }
 
@@ -91,7 +91,7 @@ import Testing
       try BoardStore.change(source: "manual") { $0.add(title: "Без проекта", source: "manual") }
 
       let entries = ProjectLog.entries(of: project)
-      #expect(entries.map(\.text) == ["#1 Починить → Готово", "+ #1 Починить"])
+      #expect(entries.map(\.text) == ["#1 Починить → Done", "+ #1 Починить"])
       #expect(entries.map(\.source) == ["manual", "voice"])
       #expect(ProjectLog.entries(of: nil).map(\.text) == ["+ #2 Без проекта"])
       #expect(ProjectLog.allEntries(projects: [project]).count == 3)

@@ -6,18 +6,24 @@ public enum Column: String, Codable, CaseIterable, Sendable {
 
   public var title: String {
     switch self {
-    case .todo: "Сделать"
-    case .doing: "В работе"
-    case .done: "Готово"
+    case .todo: "To do"
+    case .doing: "Doing"
+    case .done: "Done"
     }
   }
 
   // Accepts the raw value or the Russian title ("в работе").
   public init?(loose value: String) {
     let normalized = value.trimmingCharacters(in: .whitespaces).lowercased()
-    guard let match = Column.allCases.first(where: { $0.rawValue == normalized || $0.title.lowercased() == normalized })
-    else { return nil }
-    self = match
+    // The Russian titles from earlier versions still work.
+    let russian: [String: Column] = ["сделать": .todo, "в работе": .doing, "готово": .done]
+    if let match = Column.allCases.first(where: { $0.rawValue == normalized || $0.title.lowercased() == normalized })
+      ?? russian[normalized]
+    {
+      self = match
+    } else {
+      return nil
+    }
   }
 }
 
@@ -156,17 +162,17 @@ public enum BoardError: LocalizedError {
 
   public var errorDescription: String? {
     switch self {
-    case .noTask(let id): "Задачи #\(id) нет на доске"
-    case .selfReference(let id): "#\(id) не может ссылаться на саму себя"
-    case .parentCycle(let id, let parent): "#\(parent) — подзадача #\(id), сделать её родителем нельзя"
-    case .dependencyCycle(let path): "Зависимости по кругу: " + path.map { "#\($0)" }.joined(separator: " → ")
-    case .unknownRef(let ref): "Неизвестная ссылка «\(ref)»: нужен ref из этого плана или номер задачи (#12)"
-    case .duplicateRef(let ref): "ref «\(ref)» повторяется в плане"
+    case .noTask(let id): "There is no task #\(id) on the board"
+    case .selfReference(let id): "#\(id) cannot refer to itself"
+    case .parentCycle(let id, let parent): "#\(parent) is a subtask of #\(id), so it cannot become its parent"
+    case .dependencyCycle(let path): "Circular dependencies: " + path.map { "#\($0)" }.joined(separator: " → ")
+    case .unknownRef(let ref): "Unknown reference “\(ref)”: use a ref from this plan or a task number (#12)"
+    case .duplicateRef(let ref): "ref “\(ref)” appears twice in the plan"
     case .unknownProject(let name, let known):
-      "Нет проекта «\(name)». Есть: " + (known.isEmpty ? "—" : known.joined(separator: ", "))
-        + ". Новый проект — create_project, но только если пользователь действительно начал новый."
-    case .duplicateProject(let name): "Проект «\(name)» уже есть"
-    case .emptyName: "Нужно название"
+      "There is no project “\(name)”. Known projects: " + (known.isEmpty ? "—" : known.joined(separator: ", "))
+        + ". For a genuinely new project use create_project — only if the user really started a new one."
+    case .duplicateProject(let name): "Project “\(name)” already exists"
+    case .emptyName: "A name is required"
     }
   }
 }

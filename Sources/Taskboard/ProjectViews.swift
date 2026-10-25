@@ -14,11 +14,11 @@ struct JournalView: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      TextField(project.map { "Запись в журнал «\($0.name)» — Enter" } ?? "Запись в журнал — Enter", text: $newEntry)
+      TextField(project.map { "Journal entry for “\($0.name)” — Enter" } ?? "Journal entry — Enter", text: $newEntry)
         .textFieldStyle(.roundedBorder).onSubmit(append).padding(12)
       if entries.isEmpty {
         Spacer()
-        Text("Пока пусто. Записи появляются сами при изменении задач, из заметок и документов.")
+        Text("Nothing here yet. Entries appear on their own as tasks change and as notes and documents come in.")
           .font(.callout).foregroundStyle(.secondary)
         Spacer()
       } else {
@@ -71,15 +71,15 @@ struct DocumentsView: View {
     VStack(alignment: .leading, spacing: 0) {
       Text(
         project == nil
-          ? "Входящие: сюда попадает всё, что перетащено на виджет или в это окно без проекта. Claude разберёт и переложит в проект."
-          : "Документы и заметки проекта. Перетащите файл в окно — Claude прочитает и запишет в журнал."
+          ? "Inbox: everything dropped on the widget or this window without a project lands here. Claude will read it and file it under a project."
+          : "Project documents and notes. Drop a file on the window — Claude will read it and log the gist."
       )
       .font(.caption).foregroundStyle(.secondary).padding(12)
       if files.isEmpty {
         Spacer()
         HStack {
           Spacer()
-          Label("Файлов нет", systemImage: "tray").foregroundStyle(.secondary)
+          Label("No files", systemImage: "tray").foregroundStyle(.secondary)
           Spacer()
         }
         Spacer()
@@ -89,7 +89,7 @@ struct DocumentsView: View {
             Image(systemName: "doc.text")
             Text(url.lastPathComponent).lineLimit(1)
             Spacer()
-            Button("Показать") { NSWorkspace.shared.activateFileViewerSelecting([url]) }.buttonStyle(.link)
+            Button("Show") { NSWorkspace.shared.activateFileViewerSelecting([url]) }.buttonStyle(.link)
           }
           .contentShape(Rectangle())
           .onTapGesture(count: 2) { NSWorkspace.shared.open(url) }
@@ -128,10 +128,10 @@ struct ProjectForm: View {
 
   var body: some View {
     Form {
-      TextField("Название", text: $name)
-      TextField("О чём проект", text: $summary, axis: .vertical).lineLimit(2...6)
+      TextField("Name", text: $name)
+      TextField("What the project is about", text: $summary, axis: .vertical).lineLimit(2...6)
       if case .edit = mode {
-        Picker("Статус", selection: $status) {
+        Picker("Status", selection: $status) {
           ForEach(ProjectStatus.allCases, id: \.self) { Text($0.title).tag($0) }
         }
       }
@@ -146,9 +146,9 @@ struct ProjectForm: View {
       }
     }
     .toolbar {
-      ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
+      ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
       ToolbarItem(placement: .confirmationAction) {
-        Button("Сохранить") {
+        Button("Save") {
           save(name, summary, { if case .edit = mode { status } else { nil } }())
           dismiss()
         }
@@ -168,19 +168,19 @@ struct NoteSheet: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Text("Заметка или протокол").font(.headline)
-      Text("Claude прочитает текст, запишет итоги в журнал проекта и заведёт задачи, где они названы явно.")
+      Text("Note or meeting minutes").font(.headline)
+      Text("Claude will read the text, log the gist in the project journal and add tasks where they are explicit.")
         .font(.caption).foregroundStyle(.secondary)
-      Picker("Проект", selection: $slug) {
-        Text("Определить по тексту").tag(String?.none)
+      Picker("Project", selection: $slug) {
+        Text("Detect from the text").tag(String?.none)
         ForEach(projects) { Text($0.name).tag(Optional($0.slug)) }
       }
       TextEditor(text: $text).font(.body).frame(minHeight: 220)
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.primary.opacity(0.15)))
       HStack {
         Spacer()
-        Button("Отмена") { dismiss() }
-        Button("Отправить") {
+        Button("Cancel") { dismiss() }
+        Button("Send") {
           send(text, projects.first { $0.slug == slug })
           dismiss()
         }

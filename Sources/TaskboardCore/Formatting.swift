@@ -33,7 +33,7 @@ extension Board {
     if let project = task.project { line += " (\(project))" }
     if task.priority != .normal { line += " [\(task.priority.rawValue)]" }
     let waiting = waitingOn(task)
-    if !waiting.isEmpty { line += " · ждёт " + waiting.map { "#\($0.id)" }.joined(separator: ", ") }
+    if !waiting.isEmpty { line += " · waiting on " + waiting.map { "#\($0.id)" }.joined(separator: ", ") }
     if let progress = progress(of: task.id) { line += " · \(progress.done)/\(progress.total)" }
     if withNotes, let notes = task.notes { line += "\n    " + notes.replacingOccurrences(of: "\n", with: "\n    ") }
     return line
@@ -53,34 +53,34 @@ extension Board {
       for child in children(of: task.id) { walk(child, depth: depth + 1) }
     }
     roots.forEach { walk($0, depth: 0) }
-    guard !lines.isEmpty else { return "Доска пуста." }
-    return lines.joined(separator: "\n") + "\n\n▶ в работе · ○ можно брать · ⛔ ждёт другие · □ группа, закрывается подзадачами · ✓ готово · n/m — подзадачи готовы"
+    guard !lines.isEmpty else { return "The board is empty." }
+    return lines.joined(separator: "\n") + "\n\n▶ doing · ○ ready to take · ⛔ waiting on others · □ group, closes through its subtasks · ✓ done · n/m — subtasks done"
   }
 
   // What can be taken right now.
   public func readyListing() -> String {
     let ready = ordered(tasks.filter(isReady))
-    guard !ready.isEmpty else { return "Сейчас брать нечего: всё готово или ждёт других задач." }
+    guard !ready.isEmpty else { return "Nothing to take right now: everything is done or waiting on other tasks." }
     return ready.map { task in
       let path = ancestors(of: task.id).reversed().map(\.title).joined(separator: " › ")
-      return summary(task) + (path.isEmpty ? "" : "\n    в «\(path)»")
+      return summary(task) + (path.isEmpty ? "" : "\n    in “\(path)”")
     }.joined(separator: "\n")
   }
 
   // One task with everything around it.
   public func details(_ id: Int) throws -> String {
     guard let task = task(id) else { throw BoardError.noTask(id) }
-    var lines = [summary(task, withNotes: true), "Колонка: \(task.column.title), источник: \(task.source)"]
+    var lines = [summary(task, withNotes: true), "Column: \(task.column.title), source: \(task.source)"]
     let path = ancestors(of: id).reversed().map { "#\($0.id) \($0.title)" }
-    if !path.isEmpty { lines.append("Входит в: " + path.joined(separator: " › ")) }
+    if !path.isEmpty { lines.append("Part of: " + path.joined(separator: " › ")) }
     let children = children(of: id)
-    if !children.isEmpty { lines.append("Подзадачи:\n" + children.map { "  " + summary($0) }.joined(separator: "\n")) }
+    if !children.isEmpty { lines.append("Subtasks:\n" + children.map { "  " + summary($0) }.joined(separator: "\n")) }
     let dependencies = task.dependsOn.compactMap { self.task($0) }
     if !dependencies.isEmpty {
-      lines.append("Зависит от:\n" + dependencies.map { "  " + summary($0) }.joined(separator: "\n"))
+      lines.append("Depends on:\n" + dependencies.map { "  " + summary($0) }.joined(separator: "\n"))
     }
     let dependents = dependents(of: id)
-    if !dependents.isEmpty { lines.append("Её ждут:\n" + dependents.map { "  " + summary($0) }.joined(separator: "\n")) }
+    if !dependents.isEmpty { lines.append("Waited on by:\n" + dependents.map { "  " + summary($0) }.joined(separator: "\n")) }
     return lines.joined(separator: "\n")
   }
 }

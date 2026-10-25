@@ -8,9 +8,9 @@ enum ProjectFilter: Hashable {
 }
 
 enum BoardTab: String, CaseIterable {
-  case board = "Доска"
-  case journal = "Журнал"
-  case documents = "Документы"
+  case board = "Board"
+  case journal = "Journal"
+  case documents = "Documents"
 }
 
 struct BoardView: View {
@@ -93,33 +93,33 @@ struct BoardView: View {
   private var toolbar: some View {
     VStack(spacing: 8) {
       HStack {
-        Picker("Проект", selection: $filter) {
-          Text("Все проекты").tag(ProjectFilter.all)
-          Text("Без проекта").tag(ProjectFilter.none)
+        Picker("Project", selection: $filter) {
+          Text("All projects").tag(ProjectFilter.all)
+          Text("No project").tag(ProjectFilter.none)
           if !model.board.activeProjects.isEmpty { Divider() }
           ForEach(model.board.activeProjects) { Text($0.name).tag(ProjectFilter.project($0.slug)) }
         }
         .labelsHidden().frame(width: 200)
-        Button { projectForm = .new } label: { Image(systemName: "plus") }.help("Новый проект")
+        Button { projectForm = .new } label: { Image(systemName: "plus") }.help("New project")
         if let selected {
           Button { projectForm = .edit(selected) } label: { Image(systemName: "slider.horizontal.3") }
-            .help("Свойства проекта")
+            .help("Project settings")
         }
         Picker("", selection: $tab) {
           ForEach(BoardTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
         }
         .pickerStyle(.segmented).labelsHidden().frame(width: 260)
         Spacer()
-        Button { showNote = true } label: { Label("Заметка", systemImage: "square.and.pencil") }
-          .help("Вставить текст заметки или протокола — Claude разберёт")
-        Button(action: pickFiles) { Label("Файл", systemImage: "paperclip") }
-          .help("Прикрепить документ (можно и перетащить в окно или на виджет)")
+        Button { showNote = true } label: { Label("Note", systemImage: "square.and.pencil") }
+          .help("Paste a note or meeting minutes — Claude will sort it out")
+        Button(action: pickFiles) { Label("File", systemImage: "paperclip") }
+          .help("Attach a document (or drop it on this window or the widget)")
       }
       HStack {
         if tab == .board {
           TextField(newTaskPlaceholder, text: $newTitle).textFieldStyle(.roundedBorder).onSubmit(add)
         }
-        Text("⌃⌥⌘R — голосом").font(.caption).foregroundStyle(.secondary)
+        Text("⌃⌥⌘R — by voice").font(.caption).foregroundStyle(.secondary)
       }
       if let summary = selected?.summary {
         Text(summary).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
@@ -129,7 +129,7 @@ struct BoardView: View {
   }
 
   private var newTaskPlaceholder: String {
-    selected.map { "Новая задача в «\($0.name)» — Enter" } ?? "Новая задача — Enter"
+    selected.map { "New task in “\($0.name)” — Enter" } ?? "New task — Enter"
   }
 
   private func matches(_ task: BoardTask) -> Bool {
@@ -152,7 +152,7 @@ struct BoardView: View {
     let panel = NSOpenPanel()
     panel.allowsMultipleSelection = true
     panel.canChooseDirectories = false
-    panel.prompt = "Прикрепить"
+    panel.prompt = "Attach"
     if panel.runModal() == .OK { model.ingest(urls: panel.urls, project: selected) }
   }
 }
@@ -202,21 +202,21 @@ struct ColumnView: View {
 
   @ViewBuilder
   private func menu(for task: BoardTask) -> some View {
-    Button("Изменить…") { edit(task) }
+    Button("Edit…") { edit(task) }
     ForEach(Column.allCases.filter { $0 != task.column }, id: \.self) { target in
       Button("→ \(target.title)") { model.change { board in _ = try board.update(task.id) { $0.column = target } } }
     }
-    Menu("Приоритет") {
+    Menu("Priority") {
       ForEach(Priority.allCases, id: \.self) { priority in
         Button(priority.label) { model.change { board in _ = try board.update(task.id) { $0.priority = priority } } }
       }
     }
     Divider()
-    Button("Скопировать") {
+    Button("Copy") {
       NSPasteboard.general.clearContents()
       NSPasteboard.general.setString([task.title, task.notes].compactMap { $0 }.joined(separator: "\n\n"), forType: .string)
     }
-    Button("Удалить", role: .destructive) { model.change { board in _ = try board.remove(task.id) } }
+    Button("Delete", role: .destructive) { model.change { board in _ = try board.remove(task.id) } }
   }
 }
 
@@ -253,7 +253,7 @@ struct CardView: View {
         Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3)
       }
       if !waiting.isEmpty && task.column != .done {
-        Text("ждёт " + waiting.map { "#\($0.id) \($0.title)" }.joined(separator: ", "))
+        Text("waiting on " + waiting.map { "#\($0.id) \($0.title)" }.joined(separator: ", "))
           .font(.caption2).foregroundStyle(.orange).lineLimit(2)
       }
       HStack(spacing: 6) {
@@ -294,16 +294,16 @@ struct EditTaskView: View {
 
   var body: some View {
     Form {
-      TextField("Название", text: $task.title)
-      Picker("Проект", selection: $task.project) {
-        Text("Без проекта").tag(String?.none)
+      TextField("Title", text: $task.title)
+      Picker("Project", selection: $task.project) {
+        Text("No project").tag(String?.none)
         ForEach(projectNames, id: \.self) { Text($0).tag(Optional($0)) }
       }
-      Picker("Приоритет", selection: $task.priority) {
+      Picker("Priority", selection: $task.priority) {
         ForEach(Priority.allCases, id: \.self) { Text($0.label).tag($0) }
       }
       TextField(
-        "Заметки", text: Binding(get: { task.notes ?? "" }, set: { task.notes = $0.isBlank ? nil : $0 }),
+        "Notes", text: Binding(get: { task.notes ?? "" }, set: { task.notes = $0.isBlank ? nil : $0 }),
         axis: .vertical
       )
       .lineLimit(4...12)
@@ -311,9 +311,9 @@ struct EditTaskView: View {
     .padding()
     .frame(width: 460)
     .toolbar {
-      ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
+      ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
       ToolbarItem(placement: .confirmationAction) {
-        Button("Сохранить") {
+        Button("Save") {
           save(task)
           dismiss()
         }
@@ -326,9 +326,9 @@ struct EditTaskView: View {
 extension Priority {
   var label: String {
     switch self {
-    case .low: "Низкий"
-    case .normal: "Обычный"
-    case .high: "Высокий"
+    case .low: "Low"
+    case .normal: "Normal"
+    case .high: "High"
     }
   }
 }

@@ -7,7 +7,7 @@ extension AppModel {
   func ingest(urls: [URL], project: Project?) {
     let files = urls.filter { $0.isFileURL && !$0.hasDirectoryPath }
     guard !files.isEmpty else {
-      show("Папки не поддерживаются — перетащите файлы", isError: true)
+      show("Folders aren't supported — drop files instead", isError: true)
       return
     }
     enqueue { [self] in
@@ -16,7 +16,7 @@ extension AppModel {
           let stored = try ProjectDocuments.attach(url, slug: project?.slug)
           await digest(stored, project: project)
         } catch {
-          show("Не удалось сохранить «\(url.lastPathComponent)»: \(error.localizedDescription)", isError: true)
+          show("Couldn't save “\(url.lastPathComponent)”: \(error.localizedDescription)", isError: true)
         }
       }
     }
@@ -29,7 +29,7 @@ extension AppModel {
         let stored = try ProjectDocuments.saveNote(note, slug: project?.slug)
         await digest(stored, project: project)
       } catch {
-        show("Не удалось сохранить заметку: \(error.localizedDescription)", isError: true)
+        show("Couldn't save the note: \(error.localizedDescription)", isError: true)
       }
     }
   }
@@ -49,25 +49,25 @@ extension AppModel {
     do {
       text = try ProjectDocuments.extractText(stored)
     } catch {
-      journal("Файл «\(name)» сохранён без разбора: \(error.localizedDescription)", project: project)
+      journal("File “\(name)” saved without being read: \(error.localizedDescription)", project: project)
       show(error.localizedDescription)
       return
     }
 
     activity = .ingesting(name)
     let place =
-      project.map { "Проект: \($0.name) (документ уже лежит в его папке)." }
-      ?? "Проект не указан: документ лежит во входящих (файл \"\(name)\")."
+      project.map { "Project: \($0.name) (the document is already in its folder)." }
+      ?? "No project given: the document is in the inbox (file \"\(name)\")."
     // The closing tag inside the text must not end the data block early.
     let safe = text.replacingOccurrences(of: "</document>", with: "</ document>")
-    let prompt = "Документ «\(name)».\n\(place)\n\nСодержимое:\n<document>\n\(safe)\n</document>"
+    let prompt = "Document “\(name)”.\n\(place)\n\nContents:\n<document>\n\(safe)\n</document>"
     do {
       let summary = try await ClaudeRunner.process(document: prompt)
       reload()
       show(summary)
     } catch {
-      journal("Файл «\(name)» сохранён, Claude его не разобрал: \(error.localizedDescription)", project: project)
-      show("\(error.localizedDescription) — файл сохранён, разбор можно повторить позже", isError: true)
+      journal("File “\(name)” saved, but Claude couldn't read it: \(error.localizedDescription)", project: project)
+      show("\(error.localizedDescription) — the file is saved; you can retry the analysis later", isError: true)
     }
   }
 

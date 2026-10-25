@@ -10,9 +10,9 @@ public enum DocumentError: LocalizedError {
 
   public var errorDescription: String? {
     switch self {
-    case .unsupported(let name): "Текст из «\(name)» не извлечь (формат не поддерживается), файл сохранён как есть"
-    case .unreadable(let name): "Не удалось прочитать «\(name)»"
-    case .noFile(let name): "Нет файла «\(name)»"
+    case .unsupported(let name): "Can't extract text from “\(name)” (unsupported format); the file is saved as is"
+    case .unreadable(let name): "Couldn't read “\(name)”"
+    case .noFile(let name): "No file “\(name)”"
     }
   }
 }
@@ -45,7 +45,7 @@ public enum ProjectDocuments {
   public static func saveNote(_ text: String, slug: String?, now: Date = Date()) throws -> URL {
     let folder = directory(slug: slug)
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-    let first = text.components(separatedBy: .newlines).first { !$0.isBlank } ?? "заметка"
+    let first = text.components(separatedBy: .newlines).first { !$0.isBlank } ?? "note"
     let title = first.prefix(40).map { "/:\\\n".contains($0) ? "-" : String($0) }.joined()
       .trimmingCharacters(in: .whitespaces)
     let target = uniqueURL(in: folder, name: prefixed(title + ".md", now))
@@ -94,7 +94,7 @@ public enum ProjectDocuments {
       throw DocumentError.unsupported(url.lastPathComponent)
     }
     guard let text, !text.isBlank else { throw DocumentError.unreadable(url.lastPathComponent) }
-    return text.count > limit ? String(text.prefix(limit)) + "\n…[обрезано: \(text.count) знаков]" : text
+    return text.count > limit ? String(text.prefix(limit)) + "\n…[truncated: \(text.count) characters]" : text
   }
 
   private static func prefixed(_ name: String, _ now: Date) -> String {

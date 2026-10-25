@@ -24,7 +24,8 @@ import Testing
   }
 
   @Test func looseColumn() {
-    #expect(Column(loose: "В работе") == .doing)
+    #expect(Column(loose: "Doing") == .doing)
+    #expect(Column(loose: "В работе") == .doing)  // titles from earlier versions
     #expect(Column(loose: "done") == .done)
     #expect(Column(loose: "later") == nil)
   }

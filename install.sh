@@ -20,7 +20,7 @@ if command -v claude >/dev/null; then
   CLAUDE_CONFIG_DIR="$PROFILE" claude mcp remove --scope user taskboard >/dev/null 2>&1 || true
   CLAUDE_CONFIG_DIR="$PROFILE" claude mcp add --scope user taskboard "$MCP"
 fi
-# Скилл: симлинк на исходник в репозитории, чтобы правки подхватывались без переустановки.
+# Skill: a symlink to the source in the repo, so edits are picked up without reinstalling.
 mkdir -p "$PROFILE/skills"
 ln -sfn "$PWD/skills/taskboard" "$PROFILE/skills/taskboard"
 echo "Installed to $TARGET/Taskboard.app; MCP taskboard and skill → $PROFILE"
