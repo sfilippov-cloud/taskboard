@@ -24,12 +24,13 @@ extension Board {
   }
 
   // Pull requests as the GitHub check saw them now: every link to one of them takes the new state.
-  public mutating func refreshPullRequests(_ current: [String: (title: String, state: String, live: [String])]) {
+  // `live: nil` means "couldn't tell" (the stand didn't answer): what was known stays; [] means "not deployed".
+  public mutating func refreshPullRequests(_ current: [String: (title: String, state: String, live: [String]?)]) {
     for t in tasks.indices {
       for l in tasks[t].links.indices {
         let link = tasks[t].links[l]
         guard link.kind == "pr", let now = current[link.identity] else { continue }
-        let live = now.live.isEmpty ? nil : now.live
+        let live = now.live.map { $0.isEmpty ? nil : $0 } ?? link.live
         if link.state != now.state || link.live != live || link.title != now.title {
           tasks[t].links[l].state = now.state
           tasks[t].links[l].live = live

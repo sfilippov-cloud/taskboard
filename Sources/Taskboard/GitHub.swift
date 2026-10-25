@@ -15,7 +15,7 @@ struct PullRequest: Equatable {
   var body: String
   var updatedAt: Date
   var mergeSHA: String?
-  var live: [String] = []  // environments the merge commit is deployed to
+  var live: [String]?  // environments the merge commit is deployed to; nil when the stand couldn't be asked
 
   var identity: String { "\(repo)#\(number)" }
 
@@ -26,7 +26,7 @@ struct PullRequest: Equatable {
   }
 
   var link: TaskLink {
-    TaskLink(kind: "pr", title: title, url: url, repo: repo, number: number, state: state, live: live.isEmpty ? nil : live)
+    TaskLink(kind: "pr", title: title, url: url, repo: repo, number: number, state: state, live: (live ?? []).isEmpty ? nil : live)
   }
 }
 
@@ -158,9 +158,8 @@ enum GitHubClient {
       var prs = try await pullRequests(repo: repo, since: since)
       if let versionURL = versionURLs[repo], let deployed = await deployedCommit(versionURL) {
         for index in prs.indices where prs[index].state == "merged" {
-          if let sha = prs[index].mergeSHA, await isLive(repo: repo, sha: sha, deployed: deployed) {
-            prs[index].live = [base]
-          }
+          guard let sha = prs[index].mergeSHA else { continue }
+          prs[index].live = await isLive(repo: repo, sha: sha, deployed: deployed) ? [base] : []
         }
       }
       all += prs

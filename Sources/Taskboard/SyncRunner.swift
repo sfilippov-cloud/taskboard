@@ -127,7 +127,7 @@ extension AppModel {
   // Returns the report followed by a summary line.
   func checkGitHub() async throws -> String {
     let all = try await GitHubClient.snapshot(days: SyncKind.github.days).filter { !$0.isNoise }
-    var current: [String: (title: String, state: String, live: [String])] = [:]
+    var current: [String: (title: String, state: String, live: [String]?)] = [:]
     for pr in all { current[pr.identity] = (pr.title, pr.state, pr.live) }
     try BoardStore.change(source: "github") { $0.refreshPullRequests(current) }
     reload()
@@ -136,7 +136,8 @@ extension AppModel {
     var unmatched: [PullRequest] = []
     var report: [String] = []
     for pr in all.sorted(by: { $0.updatedAt > $1.updatedAt }) {
-      let state = pr.live.isEmpty ? pr.state : "\(pr.state), live on \(pr.live.joined(separator: ", "))"
+      let live = pr.live ?? []
+      let state = live.isEmpty ? pr.state : "\(pr.state), live on \(live.joined(separator: ", "))"
       if let task = board.tasks.first(where: { $0.links.contains { $0.identity == pr.identity } }) {
         report.append("\(pr.identity) | \(state) | linked to #\(task.id)")
       } else if let known = seen["gh:" + pr.identity], known >= pr.updatedAt {

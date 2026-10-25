@@ -110,6 +110,31 @@ task until you accept.
 - Settings: `slackDays` (3), `slackSyncMinutes` (60, `0` turns automatic runs off).
 - One workspace only for now; several workspaces are not supported yet.
 
+## Links on tasks: pull requests and artifacts
+
+A task can carry links — pull requests, Claude artifacts, commits, documents. They show as chips on the card
+(click opens them); the edit sheet lists them with a remove button. Every link added or changing state is
+noted in the project journal.
+
+- **GitHub check** (`GitHub` button / "Check GitHub now"; the first run is manual, then every 60 minutes).
+  1. It asks GitHub (`gh`, read-only) for pull requests into `test` updated in the last 7 days, without bots and
+     the automatic `sync: production → test` ones.
+  2. **No Claude here:** every link already on a task takes the PR's current state — open, merged, **live on
+     test**. "Live" means the merge commit is part of the commit the stand reports on `/api/version/`
+     (GitHub's compare API); if the stand doesn't answer, what was known stays.
+  3. Pull requests not linked to any task and not seen before go to Claude, which matches them **by meaning**
+     with your open tasks and **proposes**: attach this PR to task #N, optionally moving it (doing for an open PR,
+     done only when a merged PR clearly completes the task). Nothing is attached until you accept; a rejected
+     match isn't proposed again. It can't change tasks itself.
+  The clipboard button next to "checked …" shows what it looked at, PR by PR.
+- **Artifacts, from the session itself.** Claude, in a session where the taskboard MCP and skill are installed,
+  attaches an artifact it just published to the task it belongs to (`attach_link`) — only when it's clear which
+  task; otherwise it asks. The `wingform` profile has both. For another profile (e.g. your everyday one):
+  `CLAUDE_PROFILE_DIR=~/.claude ./install.sh`.
+- Settings (`defaults write com.lozhka13.taskboard …`): `githubRepos` ("owner/name, owner/name", default
+  `JetSetProjects/JetSetBackend`), `githubBase` (`test`), `githubVersionURLs`
+  ("owner/name=https://…/api/version/, …"), `githubDays` (7), `githubSyncMinutes` (60, `0` — no automatic runs).
+
 ## Install
 
 ```bash

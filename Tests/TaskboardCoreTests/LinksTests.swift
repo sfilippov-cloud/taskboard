@@ -36,6 +36,11 @@ import Testing
     #expect(board.task(task.id)!.updated == updated)
     board.refreshPullRequests(["o/r#1": (title: "other", state: "merged", live: [])])  // unrelated PR: nothing changes
     #expect(board.task(task.id)!.links[0].state == "merged")
+    // The stand didn't answer: "live on test" is kept; a real "not deployed" clears it.
+    board.refreshPullRequests(["o/r#1255": (title: "feat: AML screening", state: "merged", live: nil)])
+    #expect(board.task(task.id)!.links[0].live == ["test"])
+    board.refreshPullRequests(["o/r#1255": (title: "feat: AML screening", state: "merged", live: [])])
+    #expect(board.task(task.id)!.links[0].live == nil)
   }
 
   @Test func linkChangesAreJournaled() throws {
