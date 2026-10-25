@@ -77,8 +77,8 @@ struct WidgetView: View {
         doing: doing.count, ready: actionable.filter { $0.column == .todo && !board.isBlocked($0) }.count,
         blocked: actionable.filter { $0.column == .todo && board.isBlocked($0) }.count)
       ActivityLine(activity: model.activity)
-      if model.syncing {
-        Label("Checking email…", systemImage: "envelope").font(.caption).foregroundStyle(.secondary)
+      ForEach(SyncKind.allCases.filter { model.isSyncing($0) }, id: \.self) { kind in
+        Label(kind.running, systemImage: kind.icon).font(.caption).foregroundStyle(.secondary)
       }
       if !board.proposals.isEmpty { proposals(board) }
       if shown.isEmpty {

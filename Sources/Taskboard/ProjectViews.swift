@@ -106,26 +106,31 @@ struct DocumentsView: View {
   }
 }
 
-// Email check status and trigger: spinner while it runs, otherwise when it last ran (or what went wrong).
+// A check's status and trigger: spinner while it runs, otherwise when it last ran (or what went wrong).
 struct SyncButton: View {
   let model: AppModel
+  let kind: SyncKind
 
   var body: some View {
+    let running = model.isSyncing(kind)
     HStack(spacing: 6) {
-      if let error = model.sync.lastError, !model.syncing {
+      if let error = model.sync.lastError(kind), !running {
         Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).help(error)
-      } else if let last = model.sync.lastRun, !model.syncing {
+      } else if let last = model.sync.lastRun(kind), !running {
         Text("checked \(last, format: .relative(presentation: .numeric))").font(.caption).foregroundStyle(.secondary)
       }
-      Button { model.syncEmail(manual: true) } label: {
-        if model.syncing {
+      Button { model.sync(kind, manual: true) } label: {
+        if running {
           ProgressView().controlSize(.small)
         } else {
-          Label("Email", systemImage: "envelope")
+          Label(kind.title, systemImage: kind.icon)
         }
       }
-      .disabled(model.syncing)
-      .help("Check the inbox for the last few days: journal entries and proposals (read-only)")
+      .disabled(running)
+      .help(
+        kind == .email
+          ? "Check the inbox for the last few days: journal entries and proposals (read-only)"
+          : "Check Slack — mapped channels, mentions and direct messages — for the last few days (read-only)")
     }
   }
 }
@@ -184,7 +189,8 @@ struct ProposalRow: View {
         Text(proposal.reason).font(.caption).foregroundStyle(.secondary)
         if let notes = proposal.notes { Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
         HStack(spacing: 6) {
-          Image(systemName: "envelope").font(.caption2).foregroundStyle(.tertiary)
+          Image(systemName: proposal.sourceKind == "slack" ? "number" : "envelope")
+            .font(.caption2).foregroundStyle(.tertiary)
           if let subject = proposal.sourceTitle {
             if let link = proposal.sourceLink.flatMap(URL.init(string:)) {
               Link(subject, destination: link).font(.caption2).lineLimit(1)
@@ -217,9 +223,10 @@ enum ProjectFormMode: Identifiable {
 
 struct ProjectForm: View {
   let mode: ProjectFormMode
-  let save: (String, String?, ProjectStatus?) -> Void
+  let save: (String, String?, ProjectStatus?, [String]) -> Void
   @State private var name = ""
   @State private var summary = ""
+  @State private var channels = ""
   @State private var status = ProjectStatus.active
   @Environment(\.dismiss) private var dismiss
 
@@ -227,6 +234,8 @@ struct ProjectForm: View {
     Form {
       TextField("Name", text: $name)
       TextField("What the project is about", text: $summary, axis: .vertical).lineLimit(2...6)
+      TextField("Slack channels (#jssi, #deals)", text: $channels, axis: .vertical).lineLimit(1...3)
+        .help("Channels, public or private, that the Slack check reads for this project; comma-separated")
       if case .edit = mode {
         Picker("Status", selection: $status) {
           ForEach(ProjectStatus.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -239,6 +248,7 @@ struct ProjectForm: View {
       if case .edit(let project) = mode {
         name = project.name
         summary = project.summary ?? ""
+        channels = project.slackChannels.joined(separator: ", ")
         status = project.status
       }
     }
@@ -246,7 +256,7 @@ struct ProjectForm: View {
       ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
       ToolbarItem(placement: .confirmationAction) {
         Button("Save") {
-          save(name, summary, { if case .edit = mode { status } else { nil } }())
+          save(name, summary, { if case .edit = mode { status } else { nil } }(), Project.parseChannels(channels))
           dismiss()
         }
         .disabled(name.isBlank)

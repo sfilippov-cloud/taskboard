@@ -20,15 +20,46 @@ public struct Project: Codable, Identifiable, Equatable, Hashable, Sendable {
   public var summary: String?
   public var status: ProjectStatus
   public var created: Date
+  public var slackChannels: [String]  // channels the Slack check reads for this project ("#jssi" or a channel id)
 
   public var id: String { slug }
 
-  public init(slug: String, name: String, summary: String? = nil, status: ProjectStatus = .active, created: Date = Date()) {
+  public init(
+    slug: String, name: String, summary: String? = nil, status: ProjectStatus = .active, created: Date = Date(),
+    slackChannels: [String] = []
+  ) {
     self.slug = slug
     self.name = name
     self.summary = summary
     self.status = status
     self.created = created
+    self.slackChannels = slackChannels
+  }
+
+  enum CodingKeys: String, CodingKey { case slug, name, summary, status, created, slackChannels }
+
+  // Projects saved before Slack channels existed have no such key.
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    slug = try container.decode(String.self, forKey: .slug)
+    name = try container.decode(String.self, forKey: .name)
+    summary = try container.decodeIfPresent(String.self, forKey: .summary)
+    status = try container.decode(ProjectStatus.self, forKey: .status)
+    created = try container.decode(Date.self, forKey: .created)
+    slackChannels = try container.decodeIfPresent([String].self, forKey: .slackChannels) ?? []
+  }
+
+  // "#jssi, deals ,#jssi" → ["#jssi", "#deals"]: a leading # is added to names, ids (C0123…) are kept.
+  public static func parseChannels(_ text: String) -> [String] {
+    var result: [String] = []
+    for part in text.components(separatedBy: CharacterSet(charactersIn: ",\n;")) {
+      var item = part.trimmingCharacters(in: .whitespacesAndNewlines)
+      if item.isEmpty { continue }
+      let isID = item.count >= 9 && item.allSatisfy { $0.isUppercase || $0.isNumber } && "CGD".contains(item.first!)
+      if !isID && !item.hasPrefix("#") { item = "#" + item }
+      if !result.contains(item) { result.append(item) }
+    }
+    return result
   }
 }
 
@@ -108,7 +139,8 @@ extension Board {
   // Переименование меняет имя и у задач проекта; папка (slug) остаётся.
   @discardableResult
   public mutating func updateProject(
-    _ slug: String, name: String? = nil, summary: String? = nil, status: ProjectStatus? = nil
+    _ slug: String, name: String? = nil, summary: String? = nil, status: ProjectStatus? = nil,
+    slackChannels: [String]? = nil
   ) throws -> Project {
     guard let index = projects.firstIndex(where: { $0.slug == slug }) else {
       throw BoardError.unknownProject(slug, known: activeProjects.map(\.name))
@@ -121,6 +153,7 @@ extension Board {
     }
     if let summary { projects[index].summary = Optional(summary).nonEmpty }
     if let status { projects[index].status = status }
+    if let slackChannels { projects[index].slackChannels = slackChannels }
     return projects[index]
   }
 

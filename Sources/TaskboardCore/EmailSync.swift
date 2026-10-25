@@ -4,9 +4,11 @@
 import Foundation
 
 public struct SyncState: Codable, Equatable, Sendable {
-  public var lastRun: Date?
+  public var lastRun: Date?  // the email check
   public var lastError: String?
-  public var threads: [String: Date] = [:]
+  public var slackLastRun: Date?  // the Slack check
+  public var slackLastError: String?
+  public var threads: [String: Date] = [:]  // Gmail thread id → latest message seen; Slack: "slack:<channel>" → same
 
   public init() {}
 

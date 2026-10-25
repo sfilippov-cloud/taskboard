@@ -189,3 +189,26 @@ func withTempStore<T>(_ body: () throws -> T) throws -> T {
     #expect(board.changes(since: before).isEmpty)
   }
 }
+
+@Suite struct SlackChannelsTests {
+  @Test func channelListsAreNormalized() {
+    #expect(Project.parseChannels("#jssi, deals ,#jssi") == ["#jssi", "#deals"])
+    #expect(Project.parseChannels("C0123ABCD, G0456EFGH\n#ops") == ["C0123ABCD", "G0456EFGH", "#ops"])
+    #expect(Project.parseChannels("  ,  ").isEmpty)
+  }
+
+  @Test func projectsKeepChannelsAndOldOnesHaveNone() throws {
+    var board = Board()
+    let project = try board.addProject(name: "JSSI")
+    #expect(project.slackChannels.isEmpty)
+    try board.updateProject(project.slug, slackChannels: ["#jssi"])
+    #expect(board.project(slug: "jssi")?.slackChannels == ["#jssi"])
+    try board.updateProject(project.slug, summary: "x")  // untouched when not passed
+    #expect(board.project(slug: "jssi")?.slackChannels == ["#jssi"])
+    try board.updateProject(project.slug, slackChannels: [])
+    #expect(board.project(slug: "jssi")?.slackChannels.isEmpty == true)
+
+    let old = #"{"slug":"a","name":"A","status":"active","created":"2026-10-01T10:00:00Z"}"#
+    #expect(try BoardStore.decoder.decode(Project.self, from: Data(old.utf8)).slackChannels.isEmpty)
+  }
+}

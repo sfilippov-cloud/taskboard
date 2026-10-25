@@ -79,6 +79,31 @@ A rejected proposal is remembered and never comes back.
 - The Gmail connector comes from the Claude account logged in to the `wingform` profile (claude.ai →
   Connectors), so the mailbox is that account's. Email content is processed by Claude like documents are.
 
+## Slack check (read-only)
+
+The same pattern as the email check, for one Slack workspace — the one the `claude.ai Slack` connector of the
+`wingform` profile is connected to. Claude reads **the channels you map to projects** (public or private),
+**messages that mention you**, **threads you take part in** and **your direct messages**, then writes journal
+entries (with the message permalink), proposes tasks when you are asked or have committed to something, and
+proposes status changes. Proposals land in the same queue (widget, **Proposals** tab) and nothing becomes a
+task until you accept.
+
+- **Map channels:** project settings (sliders) → "Slack channels", e.g. `#jssi, #deals` (a channel id such as
+  `C0123ABCD` also works). Without a mapping only mentions, threads and DMs are read.
+- **Read-only by construction.** Only search/read tools are allowed (search, read channel, read thread, user
+  profile, search users and channels, your channel list); the other 19 Slack tools — posting, drafts, reactions,
+  canvases, lists, uploads, file and canvas reading — are denied by name, tasks can't be changed by the run, and
+  Slack content is data, never instructions.
+- **DMs and private channels hold other people's personal matters.** The run is told to write down only the
+  work substance (a request, a commitment, a decision, a deadline) and never copy personal, HR, salary or
+  health details into a journal entry or a proposal. Everything it reads is processed by Claude.
+- **When it runs:** `Slack` button in the board toolbar or "Check Slack now" in the menu; the first run is manual,
+  then every 60 minutes while the app is open. Only what is newer than the last run is read
+  (`sync-state.json`). Like Gmail, the connector shows up in only some `claude -p` runs, so a run that doesn't
+  see it says `SLACK_UNAVAILABLE` and is retried (up to 8 times).
+- Settings: `slackDays` (3), `slackSyncMinutes` (60, `0` turns automatic runs off).
+- One workspace only for now; several workspaces are not supported yet.
+
 ## Install
 
 ```bash
@@ -105,7 +130,7 @@ subtasks aren't duplicated in it — their title is shown under the subtasks.
 
 `~/Library/Application Support/Taskboard/`: `board.json` (the board and the project registry, written under
 flock by the app and MCP), `archive.jsonl`, `voice/*.txt` (transcripts), `log.md` (general journal),
-`inbox/`, `projects/<slug>/{log.md,docs/}`, `sync-state.json` (email check memory). Proposals live in
+`inbox/`, `projects/<slug>/{log.md,docs/}`, `sync-state.json` (email and Slack check memory). Proposals live in
 `board.json`. Project names from old tasks become projects on their own.
 Settings (`defaults write com.lozhka13.taskboard …`): `claudeModel` (sonnet), `claudeConfigDir`,
 `claudeWorkingDir`, `claudePath`, `transcriptionLocale` (en-US).

@@ -150,6 +150,10 @@ let tools: [[String: Any]] = [
       [
         "project": ["type": "string", "description": "Current name"], "name": ["type": "string"],
         "summary": ["type": "string"], "status": ["type": "string", "enum": ProjectStatus.allCases.map(\.rawValue)],
+        "slack_channels": [
+          "type": "array", "items": ["type": "string"],
+          "description": "Slack channels the Slack check reads for this project (\"#jssi\" or a channel id). Replaces the list; [] clears it",
+        ],
       ], required: ["project"]),
   ],
   [
@@ -221,6 +225,29 @@ let tools: [[String: Any]] = [
       ], required: ["id", "column", "reason"]),
   ],
   [
+    "name": "slack_state",
+    "description":
+      "What the Slack check has already looked at: the last run and the channels checked (\"slack:<channel>\" → date of the latest message seen). Read only what is newer.",
+    "inputSchema": schema([:]),
+    "annotations": ["readOnlyHint": true],
+  ],
+  [
+    "name": "record_slack_checked",
+    "description":
+      "Record Slack channels, DMs or threads you have read, whether or not they led to anything, with the date of the latest message in each, so the next run reads only what is newer.",
+    "inputSchema": schema(
+      [
+        "channels": [
+          "type": "array",
+          "items": schema(
+            [
+              "channel": ["type": "string", "description": "Channel name (#jssi), channel id, or DM id"],
+              "last_message_date": ["type": "string", "description": "ISO 8601 date of the latest message read"],
+            ], required: ["channel", "last_message_date"]),
+        ]
+      ], required: ["channels"]),
+  ],
+  [
     "name": "email_state",
     "description":
       "What the email sync has already looked at: the last run and the threads checked (thread id → date of the latest message seen). Skip threads whose latest message is not newer.",
@@ -245,11 +272,13 @@ let tools: [[String: Any]] = [
   ],
 ]
 
-// The email sync runs with TASKBOARD_MODE=sync and sees only read tools, the journal and the proposals queue:
+// The email and Slack checks run with TASKBOARD_MODE=sync and sees only read tools, the journal and the proposals queue:
 // it can't create, change or delete tasks on its own. Everything else is hidden in that mode, and the
 // sync-only tools are hidden in the normal one.
 let mode = ProcessInfo.processInfo.environment["TASKBOARD_MODE"] ?? ""
-let syncOnlyTools: Set<String> = ["propose_task", "propose_status_change", "email_state", "record_email_checked"]
+let syncOnlyTools: Set<String> = [
+  "propose_task", "propose_status_change", "email_state", "record_email_checked", "slack_state", "record_slack_checked",
+]
 let syncAllowedTools: Set<String> = syncOnlyTools.union([
   "list_projects", "list_tasks", "get_task", "read_log", "log_entry", "list_proposals",
 ])
@@ -312,6 +341,7 @@ func documentSlug(_ name: String?) throws -> String? {
 
 func gmailLink(_ arguments: [String: Any]) -> String? {
   if let link = (arguments["link"] as? String).nonEmpty { return link }
+  guard source == "email" else { return nil }  // a Slack proposal must bring its own permalink
   return (arguments["thread_id"] as? String).nonEmpty.map { "https://mail.google.com/mail/u/0/#all/\($0)" }
 }
 
@@ -346,10 +376,33 @@ func callTool(_ name: String, _ arguments: [String: Any]) throws -> String {
   case "email_state":
     let state = SyncStore.load()
     var lines = ["Last run: " + (state.lastRun.map { ProjectLog.stamp($0) } ?? "never")]
-    let checked = state.threads.sorted { $0.value > $1.value }
+    let checked = state.threads.filter { !$0.key.hasPrefix("slack:") }.sorted { $0.value > $1.value }
     lines.append(checked.isEmpty ? "No threads recorded yet." : "Threads already checked (id → latest message seen):")
     lines += checked.map { "\($0.key) → \(ISO8601DateFormatter().string(from: $0.value))" }
     return lines.joined(separator: "\n")
+
+  case "slack_state":
+    let state = SyncStore.load()
+    var lines = ["Last run: " + (state.slackLastRun.map { ProjectLog.stamp($0) } ?? "never")]
+    let checked = state.threads.filter { $0.key.hasPrefix("slack:") }.sorted { $0.value > $1.value }
+    lines.append(checked.isEmpty ? "Nothing recorded yet." : "Already read (channel → latest message seen):")
+    lines += checked.map { "\($0.key.dropFirst(6)) → \(ISO8601DateFormatter().string(from: $0.value))" }
+    return lines.joined(separator: "\n")
+
+  case "record_slack_checked":
+    guard let raw = arguments["channels"] as? [[String: Any]], !raw.isEmpty else { throw ToolError("A channels list is required") }
+    let entries = try raw.map { item -> (String, Date) in
+      guard let channel = (item["channel"] as? String).nonEmpty else { throw ToolError("Every entry needs a channel") }
+      guard let text = item["last_message_date"] as? String, let date = SyncStore.parseDate(text) else {
+        throw ToolError("\(channel): last_message_date must be ISO 8601, e.g. 2026-10-25T14:03:00Z")
+      }
+      return ("slack:" + channel, date)
+    }
+    try SyncStore.change { state in
+      for (key, date) in entries { state.record(thread: key, lastMessage: date) }
+      state.prune()
+    }
+    return "Recorded \(entries.count) channel(s)."
 
   case "record_email_checked":
     guard let raw = arguments["threads"] as? [[String: Any]], !raw.isEmpty else { throw ToolError("A threads list is required") }
@@ -496,6 +549,7 @@ func callTool(_ name: String, _ arguments: [String: Any]) throws -> String {
       var line = "• \(project.name) [\(project.status.rawValue)] — open tasks: \(open)"
       if let last { line += ", journal: \(ProjectLog.stamp(last.date))" }
       if let summary = project.summary { line += "\n    " + summary }
+      if !project.slackChannels.isEmpty { line += "\n    Slack: " + project.slackChannels.joined(separator: ", ") }
       return line
     }.joined(separator: "\n")
 
@@ -518,7 +572,8 @@ func callTool(_ name: String, _ arguments: [String: Any]) throws -> String {
         throw BoardError.unknownProject(name, known: board.activeProjects.map(\.name))
       }
       return try board.updateProject(
-        current.slug, name: arguments["name"] as? String, summary: arguments["summary"] as? String, status: status)
+        current.slug, name: arguments["name"] as? String, summary: arguments["summary"] as? String, status: status,
+        slackChannels: (arguments["slack_channels"] as? [Any]).map { Project.parseChannels($0.map { "\($0)" }.joined(separator: ",")) })
     }
     return "Project: \(project.name) [\(project.status.rawValue)]"
 

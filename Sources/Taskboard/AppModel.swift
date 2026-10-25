@@ -17,7 +17,7 @@ enum Activity: Equatable {
 final class AppModel {
   private(set) var board = BoardStore.load()
   private(set) var sync = SyncStore.load()
-  var syncing = false
+  var syncingKinds: Set<SyncKind> = []
   var boardTab = BoardTab.board  // the widget can ask the board window to open on a given tab
   var activity: Activity = .idle {
     didSet { if activity != oldValue { onActivityChange?() } }

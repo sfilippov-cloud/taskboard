@@ -73,15 +73,18 @@ struct BoardView: View {
       }
     }
     .sheet(item: $projectForm) { mode in
-      ProjectForm(mode: mode) { name, summary, status in
+      ProjectForm(mode: mode) { name, summary, status, channels in
         switch mode {
         case .new:
           model.change { board in
             let project = try board.addProject(name: name, summary: summary)
+            try board.updateProject(project.slug, slackChannels: channels)
             filter = .project(project.slug)
           }
         case .edit(let project):
-          model.change { board in _ = try board.updateProject(project.slug, name: name, summary: summary, status: status) }
+          model.change { board in
+            _ = try board.updateProject(project.slug, name: name, summary: summary, status: status, slackChannels: channels)
+          }
         }
       }
     }
@@ -107,7 +110,7 @@ struct BoardView: View {
             .help("Project settings")
         }
         Spacer()
-        SyncButton(model: model)
+        ForEach(SyncKind.allCases, id: \.self) { SyncButton(model: model, kind: $0) }
         Button { showNote = true } label: { Label("Note", systemImage: "square.and.pencil") }
           .help("Paste a note or meeting minutes — Claude will sort it out")
         Button(action: pickFiles) { Label("File", systemImage: "paperclip") }
