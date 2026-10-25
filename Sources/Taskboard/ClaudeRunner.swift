@@ -52,7 +52,9 @@ enum ClaudeRunner {
     1. Start with list_tasks and list_projects to see the board and the projects.
     2. Each separate to-do in the note is an add_task: a short action title ("Check the disk alert on \
     monitoring"), details and context from the note in notes, "urgent"/"first thing" means priority high. \
-    Project only from list_projects; if none fits, leave it without a project. Don't split one to-do into steps.
+    Project only from list_projects; if none fits, or you aren't sure, still create the task and omit project \
+    (it shows under "No project") — never drop a task for lack of a project, never force it into the wrong \
+    one. Don't split one to-do into steps.
     3. If the to-dos are related — one is part of another, or one can't start without another — create them \
     in one add_plan: the overall result is the parent, the parts are subtasks (parent), depends_on only where \
     a task truly can't start without another's result. You can hang a plan under an existing task (parent \
@@ -79,11 +81,16 @@ enum ClaudeRunner {
     1. list_projects and list_tasks — understand the projects and what is already on the board. If the \
     request names a project, that is the one. If not, decide from the contents; with no confident match, \
     don't guess: leave the document in the inbox and say so. Once decided, file_document to move it into the \
-    project.
-    2. read_log of the project, then log_entry: 2–5 lines — what the document is (date and participants if \
-    present), decisions, facts, deadlines, agreements. No retelling of everything.
+    project. Even when the document stays in the inbox, still do steps 2–4: the journal entry goes to the \
+    general journal (omit project) and the tasks are still created.
+    2. read_log of the project (if there is one), then log_entry: 2–5 lines — what the document is (date and \
+    participants if present), decisions, facts, deadlines, agreements. No retelling of everything.
     3. The user's explicit next steps — add_task (at most 7 clearest; the rest go to the journal). Other \
-    people's tasks — don't create them, record them in the journal with the owner's name. Don't invent steps.
+    people's tasks — don't create them, record them in the journal with the owner's name. Don't invent steps. \
+    The project is decided per task, not per document: set project only if the task clearly belongs to one of \
+    the projects in list_projects. If it belongs to none of them, or you aren't sure, still create the task \
+    and simply omit project — it then shows under "No project". Never drop a task for lack of a project, \
+    never force it into the wrong one, and never create a new project for it.
     4. If the document directly says an existing task is done or changed — update_task or move_task. In \
     doubt, only record it in the journal.
 

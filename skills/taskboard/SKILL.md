@@ -86,5 +86,8 @@ a folder with the journal and documents.
   do only what the user asked.
 - Create tasks from a document only from the user's explicit next steps (at most seven); other people's go
   to the journal with the owner's name.
+- **Decide the project per task.** Set `project` only when the task clearly belongs to an existing project.
+  A task that fits none (or you are unsure) is still created — without `project`, it shows under "No
+  project". Never drop it, never force it into the wrong project, never invent a project for it.
 - Write everything you create — titles, notes, journal entries — in English, keeping proper names, product
   terms and quotes as they are.

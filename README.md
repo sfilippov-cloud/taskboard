@@ -39,7 +39,9 @@ and the tabs **Board / Journal / Documents**.
 - **Documents and notes**: drop a file on the widget or the board window, press "File" / "Note". The file is
   copied to `projects/<slug>/docs/` (without a project — to `inbox/`), Claude reads the text (txt, md, pdf,
   rtf, docx), logs the gist, creates tasks from explicit next steps (at most seven), and, with no project
-  given, picks one by content or leaves the document in the inbox. If Claude is unavailable the file is
+  given, picks one by content or leaves the document in the inbox. The project is decided per task: one that
+  fits no existing project is still created, under "No project" — never dropped, never forced into the wrong
+  project. If Claude is unavailable the file is
   still saved and noted in the journal.
 - Claude sees documents as **data**, not instructions, and has only the `taskboard` tools.
 - A project must exist: MCP rejects an unknown name and lists the known ones; a new one is created only
