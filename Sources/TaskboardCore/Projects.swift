@@ -169,7 +169,7 @@ extension Board {
 
   // Что изменилось в задачах после `before`: основа автоматического журнала.
   func changes(since before: Board) -> [(project: String?, text: String)] {
-    var result: [(String?, String)] = []
+    var result: [(String?, String)] = linkChanges(since: before)
     let old = Dictionary(uniqueKeysWithValues: before.tasks.map { ($0.id, $0) })
     let current = Set(tasks.map(\.id))
     for task in tasks {

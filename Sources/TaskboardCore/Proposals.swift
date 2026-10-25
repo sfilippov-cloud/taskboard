@@ -4,7 +4,7 @@
 import Foundation
 
 public enum ProposalKind: String, Codable, Sendable {
-  case addTask, moveTask
+  case addTask, moveTask, linkTask  // linkTask: attach a link (a pull request), optionally moving the task too
 }
 
 public struct Proposal: Codable, Identifiable, Equatable, Sendable {
@@ -15,7 +15,8 @@ public struct Proposal: Codable, Identifiable, Equatable, Sendable {
   public var project: String?
   public var priority: Priority
   public var taskID: Int?  // moveTask
-  public var column: Column?  // moveTask: where to
+  public var column: Column?  // moveTask: where to; linkTask: where to move it as well (optional)
+  public var link: TaskLink?  // linkTask
   public var reason: String  // one line: why it is proposed
   public var sourceKind: String  // "email"
   public var sourceRef: String?  // e.g. the Gmail thread id
@@ -25,7 +26,12 @@ public struct Proposal: Codable, Identifiable, Equatable, Sendable {
 
   // Same thing proposed again → same key.
   public var key: String {
-    let subject = kind == .addTask ? Proposal.normalize(title) : "\(taskID ?? 0)>\(column?.rawValue ?? "")"
+    let subject: String
+    switch kind {
+    case .addTask: subject = Proposal.normalize(title)
+    case .moveTask: subject = "\(taskID ?? 0)>\(column?.rawValue ?? "")"
+    case .linkTask: subject = "\(taskID ?? 0)|\(link?.identity ?? "")"
+    }
     return "\(kind.rawValue)|\(subject)"
   }
 
@@ -75,7 +81,7 @@ extension Board {
     return try enqueue(
       Proposal(
         id: 0, kind: .addTask, title: title, notes: draft.notes.nonEmpty, project: try resolveProject(draft.project),
-        priority: draft.priority, taskID: nil, column: nil, reason: draft.reason, sourceKind: draft.sourceKind,
+        priority: draft.priority, taskID: nil, column: nil, link: nil, reason: draft.reason, sourceKind: draft.sourceKind,
         sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle, sourceLink: draft.sourceLink, created: now))
   }
 
@@ -90,8 +96,27 @@ extension Board {
     return try enqueue(
       Proposal(
         id: 0, kind: .moveTask, title: task.title, notes: draft.notes.nonEmpty, project: task.project,
-        priority: task.priority, taskID: taskID, column: column, reason: draft.reason, sourceKind: draft.sourceKind,
+        priority: task.priority, taskID: taskID, column: column, link: nil, reason: draft.reason, sourceKind: draft.sourceKind,
         sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle, sourceLink: draft.sourceLink, created: now))
+  }
+
+  // Propose attaching a link (a pull request) to an open task, and moving the task along with it.
+  @discardableResult
+  public mutating func proposeLink(
+    _ taskID: Int, _ link: TaskLink, moveTo column: Column? = nil, _ draft: ProposalDraft, now: Date = Date()
+  ) throws -> Proposal {
+    guard let task = task(taskID) else { throw BoardError.noTask(taskID) }
+    guard URL(string: link.url)?.scheme?.hasPrefix("http") == true else { throw BoardError.badLink(link.url) }
+    if task.links.contains(where: { $0.identity == link.identity }) {
+      throw BoardError.duplicateProposal("#\(taskID) already has this link")
+    }
+    let target = column.flatMap { $0 == task.column ? nil : $0 }
+    return try enqueue(
+      Proposal(
+        id: 0, kind: .linkTask, title: task.title, notes: draft.notes.nonEmpty, project: task.project,
+        priority: task.priority, taskID: taskID, column: target, link: link, reason: draft.reason,
+        sourceKind: draft.sourceKind, sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle,
+        sourceLink: draft.sourceLink, created: now))
   }
 
   private mutating func enqueue(_ proposal: Proposal) throws -> Proposal {
@@ -126,6 +151,11 @@ extension Board {
     case .moveTask:
       guard let taskID = proposal.taskID, let column = proposal.column, task(taskID) != nil else { return nil }
       return try update(taskID) { $0.column = column }
+    case .linkTask:
+      guard let taskID = proposal.taskID, let link = proposal.link, task(taskID) != nil else { return nil }
+      try attach(link, to: taskID)
+      if let column = proposal.column { _ = try update(taskID) { $0.column = column } }
+      return task(taskID)
     }
   }
 
@@ -141,6 +171,9 @@ extension Board {
     switch proposal.kind {
     case .addTask: "+ \(proposal.title)" + (proposal.project.map { " (\($0))" } ?? "")
     case .moveTask: "#\(proposal.taskID ?? 0) → \(proposal.column?.title ?? "?"): \(proposal.title)"
+    case .linkTask:
+      "\(proposal.link?.label ?? "link") → #\(proposal.taskID ?? 0) \(proposal.title)"
+        + (proposal.column.map { " · move to \($0.title)" } ?? "")
     }
   }
 }

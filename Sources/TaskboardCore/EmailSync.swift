@@ -8,8 +8,10 @@ public struct SyncState: Codable, Equatable, Sendable {
   public var lastError: String?
   public var slackLastRun: Date?  // the Slack check
   public var slackLastError: String?
-  public var reports: [String: String]?  // "email" / "slack" → what the last successful check looked at
-  public var threads: [String: Date] = [:]  // Gmail thread id → latest message seen; Slack: "slack:<channel>" → same
+  public var githubLastRun: Date?  // the GitHub check
+  public var githubLastError: String?
+  public var reports: [String: String]?  // "email" / "slack" / "github" → what the last successful check looked at
+  public var threads: [String: Date] = [:]  // Gmail thread id → latest message seen; Slack: "slack:<channel>" → same; GitHub: "gh:<repo>#<n>" → the PR's updatedAt
 
   public init() {}
 

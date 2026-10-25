@@ -31,6 +31,35 @@ public enum Priority: String, Codable, CaseIterable, Sendable {
   case low, normal, high
 }
 
+// Something a task points to: a pull request, a commit, a Claude artifact, a document or any URL.
+public struct TaskLink: Codable, Equatable, Hashable, Sendable {
+  public var kind: String  // "pr", "commit", "artifact", "link"
+  public var title: String
+  public var url: String
+  public var repo: String?  // "owner/name", for pull requests
+  public var number: Int?  // pull request number
+  public var state: String?  // pull request: "open", "merged", "closed"
+  public var live: [String]?  // environments the pull request is deployed to, e.g. ["test"]
+  public var added: Date
+
+  public init(
+    kind: String, title: String, url: String, repo: String? = nil, number: Int? = nil, state: String? = nil,
+    live: [String]? = nil, added: Date = Date()
+  ) {
+    self.kind = kind
+    self.title = title
+    self.url = url
+    self.repo = repo
+    self.number = number
+    self.state = state
+    self.live = live
+    self.added = added
+  }
+
+  // The same pull request may come as different URLs; repo + number is its identity.
+  public var identity: String { (repo != nil && number != nil) ? "\(repo!)#\(number!)" : url }
+}
+
 public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
   public var id: Int
   public var title: String
@@ -43,6 +72,7 @@ public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
   public var updated: Date
   public var parent: Int?  // подзадача этой задачи
   public var dependsOn: [Int]  // не начать, пока эти не готовы
+  public var links: [TaskLink] = []
 
   public init(
     id: Int, title: String, notes: String? = nil, project: String? = nil, priority: Priority = .normal,
@@ -61,7 +91,7 @@ public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
   }
 
   enum CodingKeys: String, CodingKey {
-    case id, title, notes, project, priority, column, source, created, updated, parent, dependsOn
+    case id, title, notes, project, priority, column, source, created, updated, parent, dependsOn, links
   }
 
   // Доски из версий без структуры: parent и dependsOn отсутствуют.
@@ -78,6 +108,7 @@ public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
     updated = try container.decode(Date.self, forKey: .updated)
     parent = try container.decodeIfPresent(Int.self, forKey: .parent)
     dependsOn = try container.decodeIfPresent([Int].self, forKey: .dependsOn) ?? []
+    links = try container.decodeIfPresent([TaskLink].self, forKey: .links) ?? []
   }
 }
 
@@ -167,6 +198,7 @@ public enum BoardError: LocalizedError {
   case emptyName
   case noProposal(Int)
   case duplicateProposal(String)
+  case badLink(String)
 
   public var errorDescription: String? {
     switch self {
@@ -183,6 +215,7 @@ public enum BoardError: LocalizedError {
     case .emptyName: "A name is required"
     case .noProposal(let id): "There is no proposal #\(id)"
     case .duplicateProposal(let why): "Not proposed: \(why)"
+    case .badLink(let url): "“\(url)” is not an http(s) link"
     }
   }
 }
