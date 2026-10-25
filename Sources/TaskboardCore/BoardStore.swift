@@ -18,14 +18,16 @@ public enum BoardStore {
 
   public static func load() -> Board {
     guard let data = try? Data(contentsOf: boardURL),
-      let board = try? decoder.decode(Board.self, from: data)
+      var board = try? decoder.decode(Board.self, from: data)
     else { return Board() }
+    board.adoptLegacyProjects()
     return board
   }
 
   // Loads, changes and saves the board under the lock; returns what the change returned.
+  // Task changes (new, moved between columns, deleted) are also written to the journal as `source`.
   @discardableResult
-  public static func change<T>(_ body: (inout Board) throws -> T) throws -> T {
+  public static func change<T>(source: String = "app", _ body: (inout Board) throws -> T) throws -> T {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let fd = open(lockURL.path, O_CREAT | O_RDWR, 0o600)
     guard fd >= 0 else { throw CocoaError(.fileWriteNoPermission) }
@@ -36,6 +38,9 @@ public enum BoardStore {
     var board = load()
     let before = board
     let result = try body(&board)
+    for change in board.changes(since: before) {
+      ProjectLog.append(change.text, source: source, project: change.project.flatMap { board.project(matching: $0) })
+    }
     let stale = board.takeStaleDone()
     if !stale.isEmpty { archive(stale) }
     if board != before {

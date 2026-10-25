@@ -8,6 +8,7 @@ enum Activity: Equatable {
   case recording(since: Date)
   case transcribing
   case thinking(String)  // the transcript
+  case ingesting(String)  // the name of a document Claude is reading
   case message(String, isError: Bool)
 }
 
@@ -20,6 +21,7 @@ final class AppModel {
   }
   @ObservationIgnored var onActivityChange: (() -> Void)?
 
+  @ObservationIgnored var ingestQueue: Task<Void, Never>?
   @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
   @ObservationIgnored private var messageTimer: Timer?
 
@@ -33,9 +35,9 @@ final class AppModel {
   }
 
   // Writes go through the store (locked), then the UI reloads.
-  func change(_ body: (inout Board) throws -> Void) {
+  func change(source: String = "app", _ body: (inout Board) throws -> Void) {
     do {
-      try BoardStore.change(body)
+      try BoardStore.change(source: source, body)
     } catch {
       show(error.localizedDescription, isError: true)
     }

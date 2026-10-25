@@ -66,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let symbol: String
     switch model.activity {
     case .recording: symbol = "mic.fill"
-    case .transcribing, .thinking: symbol = "ellipsis.circle"
+    case .transcribing, .thinking, .ingesting: symbol = "ellipsis.circle"
     default: symbol = "checklist"
     }
     statusItem.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Taskboard")
@@ -208,7 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func saveRaw(_ transcript: String) {
     let title = transcript.count > 80 ? String(transcript.prefix(80)) + "…" : transcript
-    model.change { $0.add(title: title, notes: transcript, source: "voice") }
+    model.change(source: "voice") { $0.add(title: title, notes: transcript, source: "voice") }
   }
 }
 

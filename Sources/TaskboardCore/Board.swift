@@ -78,8 +78,19 @@ public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
 public struct Board: Codable, Equatable, Sendable {
   public var nextID = 1
   public var tasks: [BoardTask] = []
+  public var projects: [Project] = []
 
   public init() {}
+
+  enum CodingKeys: String, CodingKey { case nextID, tasks, projects }
+
+  // Доски из версий без проектов: projects отсутствует.
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    nextID = try container.decodeIfPresent(Int.self, forKey: .nextID) ?? 1
+    tasks = try container.decodeIfPresent([BoardTask].self, forKey: .tasks) ?? []
+    projects = try container.decodeIfPresent([Project].self, forKey: .projects) ?? []
+  }
 
   public func tasks(in column: Column) -> [BoardTask] {
     tasks.filter { $0.column == column }.sorted { lhs, rhs in
@@ -139,6 +150,9 @@ public enum BoardError: LocalizedError {
   case dependencyCycle([Int])
   case unknownRef(String)
   case duplicateRef(String)
+  case unknownProject(String, known: [String])
+  case duplicateProject(String)
+  case emptyName
 
   public var errorDescription: String? {
     switch self {
@@ -148,6 +162,11 @@ public enum BoardError: LocalizedError {
     case .dependencyCycle(let path): "Зависимости по кругу: " + path.map { "#\($0)" }.joined(separator: " → ")
     case .unknownRef(let ref): "Неизвестная ссылка «\(ref)»: нужен ref из этого плана или номер задачи (#12)"
     case .duplicateRef(let ref): "ref «\(ref)» повторяется в плане"
+    case .unknownProject(let name, let known):
+      "Нет проекта «\(name)». Есть: " + (known.isEmpty ? "—" : known.joined(separator: ", "))
+        + ". Новый проект — create_project, но только если пользователь действительно начал новый."
+    case .duplicateProject(let name): "Проект «\(name)» уже есть"
+    case .emptyName: "Нужно название"
     }
   }
 }

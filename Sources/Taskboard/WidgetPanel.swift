@@ -101,6 +101,12 @@ struct WidgetView: View {
     .opacity(hovering ? 1 : 0.9)
     .animation(.easeOut(duration: 0.15), value: hovering)
     .onHover { hovering = $0 }
+    .dropDestination(for: URL.self) { urls, _ in
+      let files = urls.filter(\.isFileURL)
+      model.ingest(urls: files, project: nil)
+      return !files.isEmpty
+    }
+    .help("Перетащите сюда файл — он попадёт во входящие, Claude разберёт и отнесёт к проекту")
     .fixedSize(horizontal: false, vertical: true)
     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { resize($0) }
   }
@@ -186,6 +192,12 @@ struct ActivityLine: View {
       VStack(alignment: .leading, spacing: 2) {
         Label("Claude раскладывает по доске…", systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
         Text("«\(transcript)»").font(.caption2).foregroundStyle(.secondary).lineLimit(3)
+      }
+    case .ingesting(let name):
+      VStack(alignment: .leading, spacing: 2) {
+        Label("Claude разбирает документ…", systemImage: "doc.text.magnifyingglass").font(.caption)
+          .foregroundStyle(.secondary)
+        Text(name).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
       }
     case .message(let text, let isError):
       Label(text, systemImage: isError ? "exclamationmark.triangle" : "checkmark")

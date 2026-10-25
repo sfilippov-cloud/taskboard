@@ -3,30 +3,63 @@ import AppKit
 import SwiftUI
 import TaskboardCore
 
+enum ProjectFilter: Hashable {
+  case all, none, project(String)  // project — slug
+}
+
+enum BoardTab: String, CaseIterable {
+  case board = "Доска"
+  case journal = "Журнал"
+  case documents = "Документы"
+}
+
 struct BoardView: View {
   let model: AppModel
   @State private var newTitle = ""
   @State private var editing: BoardTask?
+  @State private var filter = ProjectFilter.all
+  @State private var tab = BoardTab.board
+  @State private var projectForm: ProjectFormMode?
+  @State private var showNote = false
+  @State private var dropTargeted = false
+
+  private var selected: Project? {
+    if case .project(let slug) = filter { return model.board.project(slug: slug) }
+    return nil
+  }
 
   var body: some View {
     VStack(spacing: 0) {
-      HStack {
-        TextField("Новая задача — Enter", text: $newTitle)
-          .textFieldStyle(.roundedBorder)
-          .onSubmit(add)
-        Text("⌃⌥⌘R — голосом").font(.caption).foregroundStyle(.secondary)
-      }
-      .padding(12)
-      HStack(alignment: .top, spacing: 12) {
-        ForEach(Column.allCases, id: \.self) { column in
-          ColumnView(column: column, model: model, edit: { editing = $0 })
+      toolbar
+      Divider()
+      switch tab {
+      case .board:
+        HStack(alignment: .top, spacing: 12) {
+          ForEach(Column.allCases, id: \.self) { column in
+            ColumnView(column: column, model: model, filter: matches, edit: { editing = $0 })
+          }
         }
+        .padding(12)
+      case .journal:
+        JournalView(model: model, project: selected, showsProject: filter == .all)
+      case .documents:
+        DocumentsView(model: model, project: selected)
       }
-      .padding([.horizontal, .bottom], 12)
     }
     .frame(minWidth: 760, minHeight: 420)
+    .overlay {
+      if dropTargeted {
+        RoundedRectangle(cornerRadius: 12).stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8]))
+          .background(Color.accentColor.opacity(0.06)).padding(6).allowsHitTesting(false)
+      }
+    }
+    .dropDestination(for: URL.self) { urls, _ in
+      let files = urls.filter(\.isFileURL)
+      model.ingest(urls: files, project: selected)
+      return !files.isEmpty
+    } isTargeted: { dropTargeted = $0 }
     .sheet(item: $editing) { task in
-      EditTaskView(task: task) { updated in
+      EditTaskView(task: task, projects: model.board.activeProjects) { updated in
         model.change { board in
           _ = try board.update(task.id) {
             $0.title = updated.title
@@ -37,25 +70,105 @@ struct BoardView: View {
         }
       }
     }
+    .sheet(item: $projectForm) { mode in
+      ProjectForm(mode: mode) { name, summary, status in
+        switch mode {
+        case .new:
+          model.change { board in
+            let project = try board.addProject(name: name, summary: summary)
+            filter = .project(project.slug)
+          }
+        case .edit(let project):
+          model.change { board in _ = try board.updateProject(project.slug, name: name, summary: summary, status: status) }
+        }
+      }
+    }
+    .sheet(isPresented: $showNote) {
+      NoteSheet(projects: model.board.activeProjects, preselected: selected) { text, project in
+        model.ingest(note: text, project: project)
+      }
+    }
+  }
+
+  private var toolbar: some View {
+    VStack(spacing: 8) {
+      HStack {
+        Picker("Проект", selection: $filter) {
+          Text("Все проекты").tag(ProjectFilter.all)
+          Text("Без проекта").tag(ProjectFilter.none)
+          if !model.board.activeProjects.isEmpty { Divider() }
+          ForEach(model.board.activeProjects) { Text($0.name).tag(ProjectFilter.project($0.slug)) }
+        }
+        .labelsHidden().frame(width: 200)
+        Button { projectForm = .new } label: { Image(systemName: "plus") }.help("Новый проект")
+        if let selected {
+          Button { projectForm = .edit(selected) } label: { Image(systemName: "slider.horizontal.3") }
+            .help("Свойства проекта")
+        }
+        Picker("", selection: $tab) {
+          ForEach(BoardTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        }
+        .pickerStyle(.segmented).labelsHidden().frame(width: 260)
+        Spacer()
+        Button { showNote = true } label: { Label("Заметка", systemImage: "square.and.pencil") }
+          .help("Вставить текст заметки или протокола — Claude разберёт")
+        Button(action: pickFiles) { Label("Файл", systemImage: "paperclip") }
+          .help("Прикрепить документ (можно и перетащить в окно или на виджет)")
+      }
+      HStack {
+        if tab == .board {
+          TextField(newTaskPlaceholder, text: $newTitle).textFieldStyle(.roundedBorder).onSubmit(add)
+        }
+        Text("⌃⌥⌘R — голосом").font(.caption).foregroundStyle(.secondary)
+      }
+      if let summary = selected?.summary {
+        Text(summary).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+    .padding(12)
+  }
+
+  private var newTaskPlaceholder: String {
+    selected.map { "Новая задача в «\($0.name)» — Enter" } ?? "Новая задача — Enter"
+  }
+
+  private func matches(_ task: BoardTask) -> Bool {
+    switch filter {
+    case .all: true
+    case .none: task.project == nil
+    case .project: task.project == selected?.name
+    }
   }
 
   private func add() {
     let title = newTitle
+    let project = selected?.name
     guard !title.isBlank else { return }
-    model.change { $0.add(title: title, source: "manual") }
+    model.change(source: "manual") { $0.add(title: title, project: project, source: "manual") }
     newTitle = ""
+  }
+
+  private func pickFiles() {
+    let panel = NSOpenPanel()
+    panel.allowsMultipleSelection = true
+    panel.canChooseDirectories = false
+    panel.prompt = "Прикрепить"
+    if panel.runModal() == .OK { model.ingest(urls: panel.urls, project: selected) }
   }
 }
 
 struct ColumnView: View {
   let column: Column
   let model: AppModel
+  let filter: (BoardTask) -> Bool
   let edit: (BoardTask) -> Void
   @State private var targeted = false
 
   var body: some View {
     let board = model.board
-    let tasks = column == .done ? board.tasks(in: .done) : board.ordered(board.tasks.filter { $0.column == column })
+    let tasks =
+      column == .done
+      ? board.tasks(in: .done).filter(filter) : board.ordered(board.tasks.filter { $0.column == column && filter($0) })
     VStack(alignment: .leading, spacing: 8) {
       HStack {
         Text(column.title).font(.headline)
@@ -111,6 +224,15 @@ struct CardView: View {
   let task: BoardTask
   let board: Board
 
+  static func icon(for source: String) -> String {
+    switch source {
+    case "voice": "mic"
+    case "claude": "sparkles"
+    case "document": "doc.text"
+    default: "keyboard"
+    }
+  }
+
   var body: some View {
     let waiting = board.waitingOn(task)
     VStack(alignment: .leading, spacing: 4) {
@@ -143,7 +265,7 @@ struct CardView: View {
           Text(project).font(.caption2).padding(.horizontal, 6).padding(.vertical, 1)
             .background(Capsule().fill(Color.accentColor.opacity(0.15)))
         }
-        Image(systemName: task.source == "voice" ? "mic" : task.source == "claude" ? "sparkles" : "keyboard")
+        Image(systemName: Self.icon(for: task.source))
           .font(.caption2).foregroundStyle(.tertiary)
         Spacer()
         Text(task.updated, format: .relative(presentation: .named)).font(.caption2).foregroundStyle(.tertiary)
@@ -159,13 +281,24 @@ struct CardView: View {
 
 struct EditTaskView: View {
   @State var task: BoardTask
+  let projects: [Project]
   let save: (BoardTask) -> Void
   @Environment(\.dismiss) private var dismiss
+
+  // The current project stays selectable even if it has been archived since.
+  private var projectNames: [String] {
+    var names = projects.map(\.name)
+    if let current = task.project, !names.contains(current) { names.append(current) }
+    return names
+  }
 
   var body: some View {
     Form {
       TextField("Название", text: $task.title)
-      TextField("Проект", text: Binding(get: { task.project ?? "" }, set: { task.project = $0.isBlank ? nil : $0 }))
+      Picker("Проект", selection: $task.project) {
+        Text("Без проекта").tag(String?.none)
+        ForEach(projectNames, id: \.self) { Text($0).tag(Optional($0)) }
+      }
       Picker("Приоритет", selection: $task.priority) {
         ForEach(Priority.allCases, id: \.self) { Text($0.label).tag($0) }
       }
