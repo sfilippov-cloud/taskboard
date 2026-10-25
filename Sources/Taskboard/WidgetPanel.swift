@@ -78,7 +78,7 @@ struct WidgetView: View {
         blocked: actionable.filter { $0.column == .todo && board.isBlocked($0) }.count)
       ActivityLine(activity: model.activity)
       if shown.isEmpty {
-        Text("Пусто. F13 — надиктовать задачу")
+        Text("Пусто. ⌃⌥⌘R — надиктовать задачу")
           .font(.caption).foregroundStyle(.secondary)
       }
       ForEach(shown) { task in
@@ -175,7 +175,7 @@ struct ActivityLine: View {
       TimelineView(.periodic(from: since, by: 1)) { context in
         let seconds = Int(context.date.timeIntervalSince(since))
         Label(
-          String(format: "Запись %d:%02d — F13 закончить, Esc отмена", seconds / 60, seconds % 60),
+          String(format: "Запись %d:%02d — ⌃⌥⌘R закончить, Esc отмена", seconds / 60, seconds % 60),
           systemImage: "mic.fill"
         )
         .font(.caption).foregroundStyle(.red)
