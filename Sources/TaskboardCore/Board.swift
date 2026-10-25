@@ -60,6 +60,23 @@ public struct TaskLink: Codable, Equatable, Hashable, Sendable {
   public var identity: String { (repo != nil && number != nil) ? "\(repo!)#\(number!)" : url }
 }
 
+// One piece of news about a task: what an email, a Slack message, a document or the user said about it.
+public struct TaskUpdate: Codable, Equatable, Identifiable, Sendable {
+  public var id: String
+  public var date: Date
+  public var source: String  // email, slack, github, document, voice, manual, claude
+  public var text: String
+  public var link: String?  // where it comes from
+
+  public init(text: String, source: String, link: String? = nil, date: Date = Date(), id: String = UUID().uuidString) {
+    self.id = id
+    self.date = date
+    self.source = source
+    self.text = text
+    self.link = link
+  }
+}
+
 public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
   public var id: Int
   public var title: String
@@ -73,6 +90,7 @@ public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
   public var parent: Int?  // подзадача этой задачи
   public var dependsOn: [Int]  // не начать, пока эти не готовы
   public var links: [TaskLink] = []
+  public var updates: [TaskUpdate] = []  // oldest first; the card shows the last one
 
   public init(
     id: Int, title: String, notes: String? = nil, project: String? = nil, priority: Priority = .normal,
@@ -91,7 +109,7 @@ public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
   }
 
   enum CodingKeys: String, CodingKey {
-    case id, title, notes, project, priority, column, source, created, updated, parent, dependsOn, links
+    case id, title, notes, project, priority, column, source, created, updated, parent, dependsOn, links, updates
   }
 
   // Доски из версий без структуры: parent и dependsOn отсутствуют.
@@ -109,6 +127,7 @@ public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
     parent = try container.decodeIfPresent(Int.self, forKey: .parent)
     dependsOn = try container.decodeIfPresent([Int].self, forKey: .dependsOn) ?? []
     links = try container.decodeIfPresent([TaskLink].self, forKey: .links) ?? []
+    updates = try container.decodeIfPresent([TaskUpdate].self, forKey: .updates) ?? []
   }
 }
 

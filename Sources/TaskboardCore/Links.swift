@@ -41,12 +41,39 @@ extension Board {
     }
   }
 
+  // News about a task. The same text on the same task is not repeated; the oldest fall off after 100.
+  // The task's own `updated` stays put: this is not the user editing the task, and a Done task shouldn't age
+  // differently because mail arrived about it.
+  @discardableResult
+  public mutating func addUpdate(_ id: Int, text: String, source: String, link: String? = nil, date: Date = Date()) throws
+    -> Bool
+  {
+    guard let index = tasks.firstIndex(where: { $0.id == id }) else { throw BoardError.noTask(id) }
+    let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !body.isEmpty else { throw BoardError.emptyName }
+    let link = link.nonEmpty
+    if let link, URL(string: link)?.scheme?.hasPrefix("http") != true { throw BoardError.badLink(link) }
+    if tasks[index].updates.contains(where: { Proposal.normalize($0.text) == Proposal.normalize(body) }) { return false }
+    tasks[index].updates.append(TaskUpdate(text: String(body.prefix(1000)), source: source, link: link, date: date))
+    if tasks[index].updates.count > 100 { tasks[index].updates.removeFirst(tasks[index].updates.count - 100) }
+    return true
+  }
+
+  public mutating func removeUpdate(_ updateID: String, from id: Int) throws {
+    guard let index = tasks.firstIndex(where: { $0.id == id }) else { throw BoardError.noTask(id) }
+    tasks[index].updates.removeAll { $0.id == updateID }
+  }
+
   // Journal lines for links that appeared or changed state since `before`.
   func linkChanges(since before: Board) -> [(project: String?, text: String)] {
     var result: [(String?, String)] = []
     let old = Dictionary(uniqueKeysWithValues: before.tasks.map { ($0.id, $0) })
     for task in tasks {
       guard let previous = old[task.id] else { continue }
+      let known = Set(previous.updates.map(\.id))
+      for update in task.updates where !known.contains(update.id) {
+        result.append((task.project, "#\(task.id) \(task.title): " + update.text + (update.link.map { "\n" + $0 } ?? "")))
+      }
       for link in task.links {
         let head = "#\(task.id) \(task.title): "
         guard let was = previous.links.first(where: { $0.identity == link.identity }) else {

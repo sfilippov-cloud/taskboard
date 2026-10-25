@@ -81,6 +81,13 @@ extension Board {
               + " " + link.url
           }.joined(separator: "\n"))
     }
+    if !task.updates.isEmpty {
+      let recent = task.updates.suffix(10).reversed()
+      lines.append(
+        "Updates (newest first" + (task.updates.count > 10 ? ", last 10 of \(task.updates.count)" : "") + "):\n"
+          + recent.map { "  \(ProjectLog.stamp($0.date)) · \($0.source) · " + $0.text.replacingOccurrences(of: "\n", with: " ") }
+          .joined(separator: "\n"))
+    }
     let children = children(of: id)
     if !children.isEmpty { lines.append("Subtasks:\n" + children.map { "  " + summary($0) }.joined(separator: "\n")) }
     let dependencies = task.dependsOn.compactMap { self.task($0) }
