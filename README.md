@@ -52,6 +52,30 @@ subtasks); drop it on "No project" to clear the project. A move is noted in the 
 MCP tools: `list_projects`, `create_project`, `update_project`, `log_entry`, `read_log`,
 `list_documents`, `read_document`, `file_document`.
 
+## Email check (Gmail, read-only)
+
+Claude looks through the last few days of the inbox and does three things: writes **journal entries** (with a
+link to the thread) for decisions, deadlines and commitments that belong to a project; **proposes tasks**
+when you are explicitly asked to do something or committed to something; and **proposes status changes** when
+a thread shows a task started or finished. Proposals wait in a queue — in the widget (✓ / ✕, up to three) and
+in the board's **Proposals** tab (Accept / Reject / Accept all) — and nothing becomes a task until you accept.
+A rejected proposal is remembered and never comes back.
+
+- **Read-only by construction.** The run has no built-in tools, Gmail is limited to search / read (every
+  other Gmail tool is denied by name), the taskboard server runs in `sync` mode where it only exposes read
+  tools, the journal and the proposals queue — it cannot create, change or delete tasks — and anything
+  not on the allow-list is refused without asking. Email content is treated as data, never as instructions.
+- **When it runs.** `Email` button in the board toolbar or "Check email now" in the menu. The first run is
+  always manual; after one has succeeded it repeats by itself every 60 minutes while the app is open.
+- **Not read twice.** Looked-at threads are remembered in `sync-state.json` with the date of their latest
+  message; a thread is read again only when something newer arrives.
+- **What it skips.** Newsletters, receipts, alerts and other automated mail: Gmail filters the obvious senders
+  (`noreply`, `notifications`, anything with "unsubscribe") and Claude skips the rest.
+- Settings (`defaults write com.lozhka13.taskboard …`): `emailDays` (3), `emailSyncMinutes` (60, `0` turns
+  automatic runs off), `emailQuery` (the Gmail search; default `in:inbox newer_than:3d -from:(noreply OR …)`).
+- The Gmail connector comes from the Claude account logged in to the `wingform` profile (claude.ai →
+  Connectors), so the mailbox is that account's. Email content is processed by Claude like documents are.
+
 ## Install
 
 ```bash
@@ -78,6 +102,7 @@ subtasks aren't duplicated in it — their title is shown under the subtasks.
 
 `~/Library/Application Support/Taskboard/`: `board.json` (the board and the project registry, written under
 flock by the app and MCP), `archive.jsonl`, `voice/*.txt` (transcripts), `log.md` (general journal),
-`inbox/`, `projects/<slug>/{log.md,docs/}`. Project names from old tasks become projects on their own.
+`inbox/`, `projects/<slug>/{log.md,docs/}`, `sync-state.json` (email check memory). Proposals live in
+`board.json`. Project names from old tasks become projects on their own.
 Settings (`defaults write com.lozhka13.taskboard …`): `claudeModel` (sonnet), `claudeConfigDir`,
 `claudeWorkingDir`, `claudePath`, `transcriptionLocale` (en-US).
