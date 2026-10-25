@@ -116,6 +116,21 @@ task until you accept.
 - Settings: `slackDays` (3), `slackSyncMinutes` (60, `0` turns automatic runs off).
 - One workspace only for now; several workspaces are not supported yet.
 
+## Everything task-like goes to Proposals — yours and other people's
+
+The email, Slack and document checks propose **anything that reads like a task** — a request, an action item, an
+agreement, a commitment, a deadline — **whoever is to do it**, not just you: you see other people's tasks too, to
+remember them. Each proposal carries an **owner** (a name as in the source, "me" for you, empty when unclear), shown
+as "— Maria" in the list and as an orange "for Maria" in the Proposals tab; an accepted task keeps it (an owner chip
+on the card, a field in the task window). Tentative ideas are included and marked "tentative" in the reason; small
+talk and things already done are skipped. Up to 15 proposals per run; ones that already exist as open tasks, are
+waiting, or were rejected are not proposed again.
+
+**Documents work the same way.** A dropped file or pasted note no longer creates tasks on its own: the run has no
+tools to create, change or delete tasks (only to propose, log, add updates and file the document), so everything
+task-like — and a "this is done" — becomes a proposal. Your own dictation is different: you said it, so it goes
+straight to the board.
+
 ## Updates on a task
 
 Every task has a timeline of news: what an email, a Slack message, a document, a voice note or you said about it.

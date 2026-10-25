@@ -31,6 +31,7 @@ extension Board {
     }
     var line = "\(marker) #\(task.id) \(task.title)"
     if let project = task.project { line += " (\(project))" }
+    if let owner = task.owner { line += " — \(owner)" }
     if task.priority != .normal { line += " [\(task.priority.rawValue)]" }
     let waiting = waitingOn(task)
     if !waiting.isEmpty { line += " · waiting on " + waiting.map { "#\($0.id)" }.joined(separator: ", ") }

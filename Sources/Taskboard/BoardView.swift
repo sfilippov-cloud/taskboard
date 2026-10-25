@@ -73,6 +73,7 @@ struct BoardView: View {
             $0.title = updated.title
             $0.notes = updated.notes
             $0.project = updated.project
+            $0.owner = updated.owner
             $0.priority = updated.priority
             $0.links = updated.links
           }
@@ -294,6 +295,10 @@ struct CardView: View {
           Text(project).font(.caption2).padding(.horizontal, 6).padding(.vertical, 1)
             .background(Capsule().fill(Color.accentColor.opacity(0.15)))
         }
+        if let owner = task.owner {
+          Label(owner, systemImage: "person").font(.caption2).foregroundStyle(owner == "me" ? .secondary : Color.orange)
+            .help(owner == "me" ? "Yours" : "Someone else's task — owner: \(owner)")
+        }
         Image(systemName: Self.icon(for: task.source))
           .font(.caption2).foregroundStyle(.tertiary)
         Spacer()
@@ -416,6 +421,7 @@ struct EditTaskView: View {
         Text("No project").tag(String?.none)
         ForEach(projectNames, id: \.self) { Text($0).tag(Optional($0)) }
       }
+      TextField("Owner (a name, or “me”)", text: Binding(get: { task.owner ?? "" }, set: { task.owner = $0.isBlank ? nil : $0 }))
       Picker("Priority", selection: $task.priority) {
         ForEach(Priority.allCases, id: \.self) { Text($0.label).tag($0) }
       }

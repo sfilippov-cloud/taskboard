@@ -50,6 +50,10 @@ let projectProperty: [String: Any] = [
 let docProjectProperty: [String: Any] = [
   "type": "string", "description": "Project; omitted or “inbox” means the inbox (documents without a project)",
 ]
+let ownerProperty: [String: Any] = [
+  "type": "string",
+  "description": "Who is to do it: a name as in the source, \"me\" for the user; omit when unclear. Empty string clears it",
+]
 let parentProperty: [String: Any] = ["type": "integer", "description": "Parent task number; 0 removes the parent"]
 let dependsProperty: [String: Any] = [
   "type": "array", "items": ["type": "integer"],
@@ -78,7 +82,7 @@ let tools: [[String: Any]] = [
     "description": "Add one task (to “To do” by default). For several related ones use add_plan.",
     "inputSchema": schema(
       [
-        "title": titleProperty, "notes": notesProperty, "project": projectProperty,
+        "title": titleProperty, "notes": notesProperty, "project": projectProperty, "owner": ownerProperty,
         "priority": priorityProperty, "column": columnProperty, "parent": parentProperty, "depends_on": dependsProperty,
       ], required: ["title"]),
   ],
@@ -113,7 +117,7 @@ let tools: [[String: Any]] = [
     "inputSchema": schema(
       [
         "id": idProperty, "title": titleProperty, "notes": notesProperty, "project": projectProperty,
-        "priority": priorityProperty, "parent": parentProperty, "depends_on": dependsProperty,
+        "owner": ownerProperty, "priority": priorityProperty, "parent": parentProperty, "depends_on": dependsProperty,
       ], required: ["id"]),
   ],
   [
@@ -204,11 +208,12 @@ let tools: [[String: Any]] = [
   [
     "name": "propose_task",
     "description":
-      "Propose a new task for the user to accept or reject — it is NOT created until they accept. Use only for something clearly required of the user (an explicit request, a deadline, a commitment) or clearly part of a project. Refused if an open task or a waiting/rejected proposal already says the same.",
+      "Propose a new task for the user to accept or reject — it is NOT created until they accept. Use it for anything that reads like a task — a request, an action item, an agreement, a commitment, a deadline — whoever is to do it: the user or someone else (the user wants to see other people's tasks too, to remember them); set owner. Refused if an open task or a waiting/rejected proposal already says the same.",
     "inputSchema": schema(
       [
-        "title": titleProperty, "notes": notesProperty, "project": projectProperty, "priority": priorityProperty,
-        "reason": ["type": "string", "description": "One line: why this is proposed (who asked, what deadline)"],
+        "title": titleProperty, "notes": notesProperty, "project": projectProperty, "owner": ownerProperty,
+        "priority": priorityProperty,
+        "reason": ["type": "string", "description": "One line: why this is proposed (who asked, who is to do it, what deadline)"],
         "thread_id": ["type": "string", "description": "Gmail thread id the proposal comes from"],
         "subject": ["type": "string", "description": "Subject of that thread"],
         "link": ["type": "string", "description": "URL of the source; built from thread_id if omitted"],
@@ -344,8 +349,16 @@ let syncAllowedTools: Set<String> = syncOnlyTools.union([
   "list_projects", "list_tasks", "get_task", "read_log", "log_entry", "list_proposals", "add_task_update",
 ])
 
+// Document analysis runs with TASKBOARD_MODE=ingest: the same restrictions, plus the document tools — a document is
+// data from other people too, so it can't change tasks either; whatever looks like a task becomes a proposal.
+let ingestExtraTools: Set<String> = ["file_document", "list_documents", "read_document"]
+
 func isAvailable(_ name: String) -> Bool {
-  mode == "sync" ? syncAllowedTools.contains(name) : !syncOnlyTools.contains(name)
+  switch mode {
+  case "sync": return syncAllowedTools.contains(name)
+  case "ingest": return syncAllowedTools.contains(name) || ingestExtraTools.contains(name)
+  default: return !syncOnlyTools.contains(name)
+  }
 }
 
 func column(_ arguments: [String: Any]) throws -> Column? {
@@ -411,7 +424,8 @@ func draft(_ arguments: [String: Any]) throws -> ProposalDraft {
   else { throw ToolError("A reason is required") }
   return ProposalDraft(
     title: (arguments["title"] as? String) ?? "", notes: arguments["notes"] as? String,
-    project: arguments["project"] as? String, priority: try priority(arguments) ?? .normal, reason: reason,
+    project: arguments["project"] as? String, owner: arguments["owner"] as? String, priority: try priority(arguments) ?? .normal,
+    reason: reason,
     sourceKind: source, sourceRef: arguments["thread_id"] as? String, sourceTitle: arguments["subject"] as? String,
     sourceLink: gmailLink(arguments))
 }
@@ -558,7 +572,7 @@ func callTool(_ name: String, _ arguments: [String: Any]) throws -> String {
     return try BoardStore.change(source: source) { board in
       let task = board.add(
         title: title, notes: arguments["notes"] as? String,
-        project: try board.resolveProject(arguments["project"] as? String),
+        project: try board.resolveProject(arguments["project"] as? String), owner: arguments["owner"] as? String,
         priority: priority, column: column, source: source)
       if let parent {
         try board.setParent(task.id, parent)
@@ -621,6 +635,7 @@ func callTool(_ name: String, _ arguments: [String: Any]) throws -> String {
         }
         if let notes = arguments["notes"] as? String { task.notes = notes.isEmpty ? nil : notes }
         if let project { task.project = project }
+        if let owner = arguments["owner"] as? String { task.owner = Optional(owner).nonEmpty }
         if let priority { task.priority = priority }
       }
       if let parent = number(arguments["parent"]) { try board.setParent(id, parent == 0 ? nil : parent) }

@@ -54,3 +54,26 @@ import Testing
     #expect(try BoardStore.decoder.decode(BoardTask.self, from: Data(json.utf8)).updates.isEmpty)
   }
 }
+
+@Suite struct OwnerTests {
+  @Test func aProposalForSomeoneElseKeepsItsOwnerThroughAccept() throws {
+    var board = Board()
+    let draft = ProposalDraft(
+      title: "Update the API docs", owner: "  Maria ", reason: "Maria said she would, no date", sourceKind: "email")
+    let proposal = try board.proposeTask(draft)
+    #expect(proposal.owner == "Maria" && board.line(proposal) == "+ Update the API docs — Maria")
+    let mine = try board.proposeTask(ProposalDraft(title: "Send the contract", owner: "me", reason: "asked", sourceKind: "email"))
+    #expect(board.line(mine) == "+ Send the contract — you")
+    let task = try #require(try board.acceptProposal(proposal.id))
+    #expect(task.owner == "Maria")
+    #expect(try board.proposeTask(ProposalDraft(title: "No owner", reason: "r", sourceKind: "email")).owner == nil)
+  }
+
+  @Test func oldTasksHaveNoOwnerAndAddKeepsIt() throws {
+    let json = #"{"id":1,"title":"x","priority":"normal","column":"todo","source":"manual","created":"2026-10-01T10:00:00Z","updated":"2026-10-01T10:00:00Z"}"#
+    #expect(try BoardStore.decoder.decode(BoardTask.self, from: Data(json.utf8)).owner == nil)
+    var board = Board()
+    #expect(board.add(title: "T", owner: " Andrew ", source: "voice").owner == "Andrew")
+    #expect(board.add(title: "U", owner: "  ", source: "voice").owner == nil)
+  }
+}

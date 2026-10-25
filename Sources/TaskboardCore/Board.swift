@@ -82,6 +82,7 @@ public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
   public var title: String
   public var notes: String?
   public var project: String?
+  public var owner: String?  // who is responsible: a name, or "me"; nil when unknown
   public var priority: Priority
   public var column: Column
   public var source: String  // voice, claude, manual
@@ -93,13 +94,14 @@ public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
   public var updates: [TaskUpdate] = []  // oldest first; the card shows the last one
 
   public init(
-    id: Int, title: String, notes: String? = nil, project: String? = nil, priority: Priority = .normal,
-    column: Column = .todo, source: String, created: Date = Date()
+    id: Int, title: String, notes: String? = nil, project: String? = nil, owner: String? = nil,
+    priority: Priority = .normal, column: Column = .todo, source: String, created: Date = Date()
   ) {
     self.id = id
     self.title = title
     self.notes = notes
     self.project = project
+    self.owner = owner
     self.priority = priority
     self.column = column
     self.source = source
@@ -109,7 +111,7 @@ public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
   }
 
   enum CodingKeys: String, CodingKey {
-    case id, title, notes, project, priority, column, source, created, updated, parent, dependsOn, links, updates
+    case id, title, notes, project, owner, priority, column, source, created, updated, parent, dependsOn, links, updates
   }
 
   // Доски из версий без структуры: parent и dependsOn отсутствуют.
@@ -119,6 +121,7 @@ public struct BoardTask: Codable, Identifiable, Equatable, Sendable {
     title = try container.decode(String.self, forKey: .title)
     notes = try container.decodeIfPresent(String.self, forKey: .notes)
     project = try container.decodeIfPresent(String.self, forKey: .project)
+    owner = try container.decodeIfPresent(String.self, forKey: .owner)
     priority = try container.decode(Priority.self, forKey: .priority)
     column = try container.decode(Column.self, forKey: .column)
     source = try container.decode(String.self, forKey: .source)
@@ -164,12 +167,12 @@ public struct Board: Codable, Equatable, Sendable {
 
   @discardableResult
   public mutating func add(
-    title: String, notes: String? = nil, project: String? = nil, priority: Priority = .normal,
+    title: String, notes: String? = nil, project: String? = nil, owner: String? = nil, priority: Priority = .normal,
     column: Column = .todo, source: String
   ) -> BoardTask {
     let task = BoardTask(
       id: nextID, title: title.trimmingCharacters(in: .whitespacesAndNewlines), notes: notes.nonEmpty,
-      project: project.nonEmpty, priority: priority, column: column, source: source)
+      project: project.nonEmpty, owner: owner.nonEmpty, priority: priority, column: column, source: source)
     nextID += 1
     tasks.append(task)
     return task

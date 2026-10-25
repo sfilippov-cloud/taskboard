@@ -55,6 +55,7 @@ extension AppModel {
     }
 
     activity = .ingesting(name)
+    let before = board.proposals.count
     let place =
       project.map { "Project: \($0.name) (the document is already in its folder)." }
       ?? "No project given: the document is in the inbox (file \"\(name)\")."
@@ -64,7 +65,8 @@ extension AppModel {
     do {
       let summary = try await ClaudeRunner.process(document: prompt)
       reload()
-      show(summary)
+      let added = board.proposals.count - before
+      show(added > 0 ? "\(summary) (\(added) proposal\(added == 1 ? "" : "s") to review)" : summary)
     } catch {
       journal("File “\(name)” saved, but Claude couldn't read it: \(error.localizedDescription)", project: project)
       show("\(error.localizedDescription) — the file is saved; you can retry the analysis later", isError: true)

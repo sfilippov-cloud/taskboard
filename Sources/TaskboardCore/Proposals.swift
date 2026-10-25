@@ -13,6 +13,7 @@ public struct Proposal: Codable, Identifiable, Equatable, Sendable {
   public var title: String  // addTask: the new task's title; moveTask: the task's title when proposed
   public var notes: String?
   public var project: String?
+  public var owner: String?  // who is to do it (addTask): a name as in the source, "me" for the user; nil if unclear
   public var priority: Priority
   public var taskID: Int?  // moveTask
   public var column: Column?  // moveTask: where to; linkTask: where to move it as well (optional)
@@ -44,6 +45,7 @@ public struct ProposalDraft: Sendable {
   public var title: String
   public var notes: String?
   public var project: String?
+  public var owner: String?
   public var priority: Priority
   public var reason: String
   public var sourceKind: String
@@ -52,12 +54,13 @@ public struct ProposalDraft: Sendable {
   public var sourceLink: String?
 
   public init(
-    title: String, notes: String? = nil, project: String? = nil, priority: Priority = .normal, reason: String,
-    sourceKind: String, sourceRef: String? = nil, sourceTitle: String? = nil, sourceLink: String? = nil
+    title: String, notes: String? = nil, project: String? = nil, owner: String? = nil, priority: Priority = .normal,
+    reason: String, sourceKind: String, sourceRef: String? = nil, sourceTitle: String? = nil, sourceLink: String? = nil
   ) {
     self.title = title
     self.notes = notes
     self.project = project
+    self.owner = owner
     self.priority = priority
     self.reason = reason
     self.sourceKind = sourceKind
@@ -81,7 +84,7 @@ extension Board {
     return try enqueue(
       Proposal(
         id: 0, kind: .addTask, title: title, notes: draft.notes.nonEmpty, project: try resolveProject(draft.project),
-        priority: draft.priority, taskID: nil, column: nil, link: nil, reason: draft.reason, sourceKind: draft.sourceKind,
+        owner: draft.owner.nonEmpty, priority: draft.priority, taskID: nil, column: nil, link: nil, reason: draft.reason, sourceKind: draft.sourceKind,
         sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle, sourceLink: draft.sourceLink, created: now))
   }
 
@@ -96,7 +99,7 @@ extension Board {
     return try enqueue(
       Proposal(
         id: 0, kind: .moveTask, title: task.title, notes: draft.notes.nonEmpty, project: task.project,
-        priority: task.priority, taskID: taskID, column: column, link: nil, reason: draft.reason, sourceKind: draft.sourceKind,
+        owner: task.owner, priority: task.priority, taskID: taskID, column: column, link: nil, reason: draft.reason, sourceKind: draft.sourceKind,
         sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle, sourceLink: draft.sourceLink, created: now))
   }
 
@@ -114,7 +117,7 @@ extension Board {
     return try enqueue(
       Proposal(
         id: 0, kind: .linkTask, title: task.title, notes: draft.notes.nonEmpty, project: task.project,
-        priority: task.priority, taskID: taskID, column: target, link: link, reason: draft.reason,
+        owner: task.owner, priority: task.priority, taskID: taskID, column: target, link: link, reason: draft.reason,
         sourceKind: draft.sourceKind, sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle,
         sourceLink: draft.sourceLink, created: now))
   }
@@ -146,7 +149,7 @@ extension Board {
         if let link = proposal.sourceLink { notes += "\n\(link)" }
       }
       return add(
-        title: proposal.title, notes: notes, project: proposal.project, priority: proposal.priority,
+        title: proposal.title, notes: notes, project: proposal.project, owner: proposal.owner, priority: proposal.priority,
         source: proposal.sourceKind)
     case .moveTask:
       guard let taskID = proposal.taskID, let column = proposal.column, task(taskID) != nil else { return nil }
@@ -169,7 +172,9 @@ extension Board {
   // A line for lists: "+ Title" or "#12 → Done: Title".
   public func line(_ proposal: Proposal) -> String {
     switch proposal.kind {
-    case .addTask: "+ \(proposal.title)" + (proposal.project.map { " (\($0))" } ?? "")
+    case .addTask:
+      "+ \(proposal.title)" + (proposal.project.map { " (\($0))" } ?? "")
+        + (proposal.owner.map { " — \($0 == "me" ? "you" : $0)" } ?? "")
     case .moveTask: "#\(proposal.taskID ?? 0) → \(proposal.column?.title ?? "?"): \(proposal.title)"
     case .linkTask:
       "\(proposal.link?.label ?? "link") → #\(proposal.taskID ?? 0) \(proposal.title)"

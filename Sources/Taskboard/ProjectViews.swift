@@ -215,6 +215,9 @@ struct ProposalRow: View {
       VStack(alignment: .leading, spacing: 3) {
         Text(line).fontWeight(.medium)
         Text(proposal.reason).font(.caption).foregroundStyle(.secondary)
+        if proposal.kind == .addTask, let owner = proposal.owner, owner != "me" {
+          Label("for \(owner)", systemImage: "person").font(.caption2).foregroundStyle(.orange)
+        }
         if let notes = proposal.notes { Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
         HStack(spacing: 6) {
           Image(systemName: proposal.sourceKind == "slack" ? "number" : proposal.sourceKind == "github" ? "arrow.triangle.pull" : "envelope")
