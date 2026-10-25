@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var hotKeys: [HotKey] = []
   private var cancelKey: HotKey?
   private var busy = false
+  private var syncTimer: Timer?
 
   private let shortcut = controlKey | optionKey | cmdKey
 
@@ -37,6 +38,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       HotKey(keyCode: kVK_ANSI_K, modifiers: shortcut, id: 2) { [weak self] in self?.showBoard() },
       HotKey(keyCode: kVK_ANSI_W, modifiers: shortcut, id: 4) { [weak self] in self?.toggleWidget() },
     ]
+
+    // Automatic email checks: looked at every few minutes, run when the interval has passed.
+    syncTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated { if self?.model.isAutoSyncDue == true { self?.model.syncEmail(manual: false) } }
+    }
   }
 
   // MARK: - Menu
@@ -46,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     menu.delegate = self
     menu.addItem(item("Dictate a task", #selector(toggleRecordingAction), key: "r"))
     menu.addItem(item("Open board", #selector(showBoardAction), key: "k"))
+    menu.addItem(item("Check email now", #selector(syncEmailAction)))
     menu.addItem(item("Show widget", #selector(toggleWidget), key: "w"))
     menu.addItem(.separator())
     menu.addItem(item("Launch at login", #selector(toggleLoginItem)))
@@ -80,6 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @objc private func toggleRecordingAction() { toggleRecording() }
   @objc private func showBoardAction() { showBoard() }
+  @objc private func syncEmailAction() { model.syncEmail(manual: true) }
 
   // Hidden by the user; still shown while a voice note is recorded and processed.
   private var widgetHidden: Bool {

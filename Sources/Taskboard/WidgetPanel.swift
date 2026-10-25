@@ -77,6 +77,10 @@ struct WidgetView: View {
         doing: doing.count, ready: actionable.filter { $0.column == .todo && !board.isBlocked($0) }.count,
         blocked: actionable.filter { $0.column == .todo && board.isBlocked($0) }.count)
       ActivityLine(activity: model.activity)
+      if model.syncing {
+        Label("Checking email…", systemImage: "envelope").font(.caption).foregroundStyle(.secondary)
+      }
+      if !board.proposals.isEmpty { proposals(board) }
       if shown.isEmpty {
         Text("Empty. ⌃⌥⌘R — dictate a task")
           .font(.caption).foregroundStyle(.secondary)
@@ -109,6 +113,39 @@ struct WidgetView: View {
     .help("Drop a file here — it goes to the inbox, Claude reads it and files it under a project")
     .fixedSize(horizontal: false, vertical: true)
     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { resize($0) }
+  }
+
+  // Up to three proposals above the tasks: ✓ applies, ✕ drops it for good; the rest are in the board's tab.
+  private func proposals(_ board: Board) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Button {
+        model.boardTab = .proposals
+        openBoard()
+      } label: {
+        Label("Proposals · \(board.proposals.count)", systemImage: "tray.and.arrow.down")
+          .font(.caption).fontWeight(.semibold).foregroundStyle(Color.accentColor)
+      }
+      .buttonStyle(.plain)
+      ForEach(board.proposals.prefix(3)) { proposal in
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+          Button { act(proposal.id, accept: true) } label: { Image(systemName: "checkmark.circle") }
+            .buttonStyle(.plain).help("Accept")
+          Button { act(proposal.id, accept: false) } label: { Image(systemName: "xmark.circle") }
+            .buttonStyle(.plain).foregroundStyle(.secondary).help("Reject — it won't be proposed again")
+          Text(board.line(proposal)).font(.callout).lineLimit(2).help(proposal.reason)
+        }
+      }
+      if board.proposals.count > 3 {
+        Text("\(board.proposals.count - 3) more…").font(.caption2).foregroundStyle(.secondary)
+      }
+      Divider()
+    }
+  }
+
+  private func act(_ id: Int, accept: Bool) {
+    model.change(source: "email") { board in
+      if accept { try board.acceptProposal(id) } else { try board.rejectProposal(id) }
+    }
   }
 
   private func header(doing: Int, ready: Int, blocked: Int) -> some View {

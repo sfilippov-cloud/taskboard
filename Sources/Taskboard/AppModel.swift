@@ -16,6 +16,9 @@ enum Activity: Equatable {
 @Observable
 final class AppModel {
   private(set) var board = BoardStore.load()
+  private(set) var sync = SyncStore.load()
+  var syncing = false
+  var boardTab = BoardTab.board  // the widget can ask the board window to open on a given tab
   var activity: Activity = .idle {
     didSet { if activity != oldValue { onActivityChange?() } }
   }
@@ -32,6 +35,8 @@ final class AppModel {
   func reload() {
     let fresh = BoardStore.load()
     if fresh != board { board = fresh }
+    let freshSync = SyncStore.load()
+    if freshSync != sync { sync = freshSync }
   }
 
   // Writes go through the store (locked), then the UI reloads.

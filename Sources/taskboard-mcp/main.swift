@@ -157,8 +157,10 @@ let tools: [[String: Any]] = [
     "description":
       "A project journal entry (without project — the general journal): meeting outcome, decision, fact, deadline, status. Short and to the point, with dates from the source. Task changes reach the journal on their own — don't repeat them.",
     "inputSchema": schema(
-      ["project": projectProperty, "text": ["type": "string", "description": "May span several lines"]],
-      required: ["text"]),
+      [
+        "project": projectProperty, "text": ["type": "string", "description": "May span several lines"],
+        "link": ["type": "string", "description": "URL of the source (an email, a document), kept with the entry"],
+      ], required: ["text"]),
   ],
   [
     "name": "read_log",
@@ -188,7 +190,73 @@ let tools: [[String: Any]] = [
       ["file": ["type": "string", "description": "File name in the inbox"], "project": projectProperty],
       required: ["file", "project"]),
   ],
+  [
+    "name": "list_proposals",
+    "description": "Proposals waiting for the user's yes/no. Look before proposing, to avoid repeats.",
+    "inputSchema": schema([:]),
+    "annotations": ["readOnlyHint": true],
+  ],
+  [
+    "name": "propose_task",
+    "description":
+      "Propose a new task for the user to accept or reject — it is NOT created until they accept. Use only for something clearly required of the user (an explicit request, a deadline, a commitment) or clearly part of a project. Refused if an open task or a waiting/rejected proposal already says the same.",
+    "inputSchema": schema(
+      [
+        "title": titleProperty, "notes": notesProperty, "project": projectProperty, "priority": priorityProperty,
+        "reason": ["type": "string", "description": "One line: why this is proposed (who asked, what deadline)"],
+        "thread_id": ["type": "string", "description": "Gmail thread id the proposal comes from"],
+        "subject": ["type": "string", "description": "Subject of that thread"],
+        "link": ["type": "string", "description": "URL of the source; built from thread_id if omitted"],
+      ], required: ["title", "reason"]),
+  ],
+  [
+    "name": "propose_status_change",
+    "description":
+      "Propose moving an existing task to another column (doing / done) because the source shows it started or finished. It is NOT moved until the user accepts.",
+    "inputSchema": schema(
+      [
+        "id": idProperty, "column": columnProperty,
+        "reason": ["type": "string", "description": "One line: what in the source shows it"],
+        "thread_id": ["type": "string"], "subject": ["type": "string"], "link": ["type": "string"],
+      ], required: ["id", "column", "reason"]),
+  ],
+  [
+    "name": "email_state",
+    "description":
+      "What the email sync has already looked at: the last run and the threads checked (thread id → date of the latest message seen). Skip threads whose latest message is not newer.",
+    "inputSchema": schema([:]),
+    "annotations": ["readOnlyHint": true],
+  ],
+  [
+    "name": "record_email_checked",
+    "description":
+      "Record threads you have looked at, whether or not they led to anything, with the date of the latest message in each, so the next run skips them.",
+    "inputSchema": schema(
+      [
+        "threads": [
+          "type": "array",
+          "items": schema(
+            [
+              "id": ["type": "string", "description": "Gmail thread id"],
+              "last_message_date": ["type": "string", "description": "ISO 8601 date of the thread's latest message"],
+            ], required: ["id", "last_message_date"]),
+        ]
+      ], required: ["threads"]),
+  ],
 ]
+
+// The email sync runs with TASKBOARD_MODE=sync and sees only read tools, the journal and the proposals queue:
+// it can't create, change or delete tasks on its own. Everything else is hidden in that mode, and the
+// sync-only tools are hidden in the normal one.
+let mode = ProcessInfo.processInfo.environment["TASKBOARD_MODE"] ?? ""
+let syncOnlyTools: Set<String> = ["propose_task", "propose_status_change", "email_state", "record_email_checked"]
+let syncAllowedTools: Set<String> = syncOnlyTools.union([
+  "list_projects", "list_tasks", "get_task", "read_log", "log_entry", "list_proposals",
+])
+
+func isAvailable(_ name: String) -> Bool {
+  mode == "sync" ? syncAllowedTools.contains(name) : !syncOnlyTools.contains(name)
+}
 
 func column(_ arguments: [String: Any]) throws -> Column? {
   guard let value = arguments["column"] as? String else { return nil }
@@ -242,8 +310,62 @@ func documentSlug(_ name: String?) throws -> String? {
   return project.slug
 }
 
+func gmailLink(_ arguments: [String: Any]) -> String? {
+  if let link = (arguments["link"] as? String).nonEmpty { return link }
+  return (arguments["thread_id"] as? String).nonEmpty.map { "https://mail.google.com/mail/u/0/#all/\($0)" }
+}
+
+func draft(_ arguments: [String: Any]) throws -> ProposalDraft {
+  guard let reason = (arguments["reason"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty
+  else { throw ToolError("A reason is required") }
+  return ProposalDraft(
+    title: (arguments["title"] as? String) ?? "", notes: arguments["notes"] as? String,
+    project: arguments["project"] as? String, priority: try priority(arguments) ?? .normal, reason: reason,
+    sourceKind: source, sourceRef: arguments["thread_id"] as? String, sourceTitle: arguments["subject"] as? String,
+    sourceLink: gmailLink(arguments))
+}
+
 func callTool(_ name: String, _ arguments: [String: Any]) throws -> String {
+  guard isAvailable(name) else { throw ToolError("Tool \(name) is not available here") }
   switch name {
+  case "list_proposals":
+    let board = BoardStore.load()
+    guard !board.proposals.isEmpty else { return "No proposals waiting." }
+    return board.proposals.map { "• #\($0.id) " + board.line($0) + " — " + $0.reason }.joined(separator: "\n")
+
+  case "propose_task":
+    let proposal = try BoardStore.change(source: source) { try $0.proposeTask(try draft(arguments)) }
+    return "Proposed (waiting for the user): " + proposal.title
+
+  case "propose_status_change":
+    let id = try id(arguments)
+    guard let column = try column(arguments) else { throw ToolError("A column is required: todo, doing, done") }
+    let proposal = try BoardStore.change(source: source) { try $0.proposeMove(id, to: column, try draft(arguments)) }
+    return "Proposed (waiting for the user): #\(id) → \(proposal.column?.title ?? "")"
+
+  case "email_state":
+    let state = SyncStore.load()
+    var lines = ["Last run: " + (state.lastRun.map { ProjectLog.stamp($0) } ?? "never")]
+    let checked = state.threads.sorted { $0.value > $1.value }
+    lines.append(checked.isEmpty ? "No threads recorded yet." : "Threads already checked (id → latest message seen):")
+    lines += checked.map { "\($0.key) → \(ISO8601DateFormatter().string(from: $0.value))" }
+    return lines.joined(separator: "\n")
+
+  case "record_email_checked":
+    guard let raw = arguments["threads"] as? [[String: Any]], !raw.isEmpty else { throw ToolError("A threads list is required") }
+    let entries = try raw.map { item -> (String, Date) in
+      guard let id = (item["id"] as? String).nonEmpty else { throw ToolError("Every thread needs an id") }
+      guard let text = item["last_message_date"] as? String, let date = SyncStore.parseDate(text) else {
+        throw ToolError("Thread \(id): last_message_date must be ISO 8601, e.g. 2026-10-25T14:03:00Z")
+      }
+      return (id, date)
+    }
+    try SyncStore.change { state in
+      for (id, date) in entries { state.record(thread: id, lastMessage: date) }
+      state.prune()
+    }
+    return "Recorded \(entries.count) thread(s)."
+
   case "list_tasks":
     let board = BoardStore.load()
     if (arguments["view"] as? String) == "ready" { return board.readyListing() }
@@ -403,9 +525,10 @@ func callTool(_ name: String, _ arguments: [String: Any]) throws -> String {
   case "log_entry":
     guard let entry = (arguments["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !entry.isEmpty
     else { throw ToolError("text is required") }
+    let linked = (arguments["link"] as? String).nonEmpty.map { entry + "\n" + $0 } ?? entry
     return try BoardStore.change(source: source) { board in
       let project = try board.resolveProject(arguments["project"] as? String).flatMap { board.project(matching: $0) }
-      ProjectLog.append(entry, source: source, project: project)
+      ProjectLog.append(linked, source: source, project: project)
       return "Written to the journal: \(project?.name ?? "general")"
     }
 
@@ -472,7 +595,7 @@ while let line = readLine() {
   case "ping":
     send(["jsonrpc": "2.0", "id": id, "result": [String: Any]()])
   case "tools/list":
-    send(["jsonrpc": "2.0", "id": id, "result": ["tools": tools]])
+    send(["jsonrpc": "2.0", "id": id, "result": ["tools": tools.filter { isAvailable($0["name"] as? String ?? "") }]])
   case "tools/call":
     let name = params["name"] as? String ?? ""
     let arguments = params["arguments"] as? [String: Any] ?? [:]

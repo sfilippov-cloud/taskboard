@@ -11,14 +11,14 @@ enum BoardTab: String, CaseIterable {
   case board = "Board"
   case journal = "Journal"
   case documents = "Documents"
+  case proposals = "Proposals"
 }
 
 struct BoardView: View {
-  let model: AppModel
+  @Bindable var model: AppModel
   @State private var newTitle = ""
   @State private var editing: BoardTask?
   @State private var filter = ProjectFilter.all
-  @State private var tab = BoardTab.board
   @State private var projectForm: ProjectFormMode?
   @State private var showNote = false
   @State private var dropTargeted = false
@@ -32,7 +32,7 @@ struct BoardView: View {
     VStack(spacing: 0) {
       toolbar
       Divider()
-      switch tab {
+      switch model.boardTab {
       case .board:
         HStack(alignment: .top, spacing: 12) {
           ForEach(Column.allCases, id: \.self) { column in
@@ -44,6 +44,8 @@ struct BoardView: View {
         JournalView(model: model, project: selected, showsProject: filter == .all)
       case .documents:
         DocumentsView(model: model, project: selected)
+      case .proposals:
+        ProposalsView(model: model)
       }
     }
     .frame(minWidth: 760, minHeight: 420)
@@ -96,22 +98,23 @@ struct BoardView: View {
         board: model.board, filter: $filter, add: { projectForm = .new },
         drop: { ids, name in moveTasks(ids, to: name) })
       HStack {
-        Picker("", selection: $tab) {
-          ForEach(BoardTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        Picker("", selection: $model.boardTab) {
+          ForEach(BoardTab.allCases, id: \.self) { Text(label(for: $0)).tag($0) }
         }
-        .pickerStyle(.segmented).labelsHidden().frame(width: 260)
+        .pickerStyle(.segmented).labelsHidden().frame(width: 360)
         if let selected {
           Button { projectForm = .edit(selected) } label: { Image(systemName: "slider.horizontal.3") }
             .help("Project settings")
         }
         Spacer()
+        SyncButton(model: model)
         Button { showNote = true } label: { Label("Note", systemImage: "square.and.pencil") }
           .help("Paste a note or meeting minutes — Claude will sort it out")
         Button(action: pickFiles) { Label("File", systemImage: "paperclip") }
           .help("Attach a document (or drop it on this window or the widget)")
       }
       HStack {
-        if tab == .board {
+        if model.boardTab == .board {
           TextField(newTaskPlaceholder, text: $newTitle).textFieldStyle(.roundedBorder).onSubmit(add)
         }
         Text("⌃⌥⌘R — by voice").font(.caption).foregroundStyle(.secondary)
@@ -132,6 +135,11 @@ struct BoardView: View {
       model.show("Moved \(count) task\(count == 1 ? "" : "s") to \(name ?? "No project")")
     }
     return true
+  }
+
+  private func label(for tab: BoardTab) -> String {
+    let count = model.board.proposals.count
+    return tab == .proposals && count > 0 ? "Proposals (\(count))" : tab.rawValue
   }
 
   private var newTaskPlaceholder: String {

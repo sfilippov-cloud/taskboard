@@ -106,6 +106,103 @@ struct DocumentsView: View {
   }
 }
 
+// Email check status and trigger: spinner while it runs, otherwise when it last ran (or what went wrong).
+struct SyncButton: View {
+  let model: AppModel
+
+  var body: some View {
+    HStack(spacing: 6) {
+      if let error = model.sync.lastError, !model.syncing {
+        Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).help(error)
+      } else if let last = model.sync.lastRun, !model.syncing {
+        Text("checked \(last, format: .relative(presentation: .numeric))").font(.caption).foregroundStyle(.secondary)
+      }
+      Button { model.syncEmail(manual: true) } label: {
+        if model.syncing {
+          ProgressView().controlSize(.small)
+        } else {
+          Label("Email", systemImage: "envelope")
+        }
+      }
+      .disabled(model.syncing)
+      .help("Check the inbox for the last few days: journal entries and proposals (read-only)")
+    }
+  }
+}
+
+// What the assistant noticed but left to the user: accept applies it (and journals it), reject drops it for good.
+struct ProposalsView: View {
+  let model: AppModel
+
+  var body: some View {
+    let board = model.board
+    VStack(spacing: 0) {
+      if board.proposals.isEmpty {
+        Spacer()
+        VStack(spacing: 6) {
+          Label("No proposals", systemImage: "checkmark.circle").foregroundStyle(.secondary)
+          Text("Tasks and status changes found in your email wait here for your yes or no.")
+            .font(.caption).foregroundStyle(.secondary)
+        }
+        Spacer()
+      } else {
+        HStack {
+          Text("\(board.proposals.count) waiting").font(.headline)
+          Spacer()
+          Button("Accept all") { act(board.proposals.map(\.id), accept: true) }
+          Button("Reject all", role: .destructive) { act(board.proposals.map(\.id), accept: false) }
+        }
+        .padding(12)
+        List(board.proposals) { proposal in
+          ProposalRow(
+            proposal: proposal, line: board.line(proposal),
+            accept: { act([proposal.id], accept: true) }, reject: { act([proposal.id], accept: false) })
+        }
+      }
+    }
+  }
+
+  private func act(_ ids: [Int], accept: Bool) {
+    model.change(source: "email") { board in
+      for id in ids {
+        if accept { try board.acceptProposal(id) } else { try board.rejectProposal(id) }
+      }
+    }
+  }
+}
+
+struct ProposalRow: View {
+  let proposal: Proposal
+  let line: String
+  let accept: () -> Void
+  let reject: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(line).fontWeight(.medium)
+        Text(proposal.reason).font(.caption).foregroundStyle(.secondary)
+        if let notes = proposal.notes { Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
+        HStack(spacing: 6) {
+          Image(systemName: "envelope").font(.caption2).foregroundStyle(.tertiary)
+          if let subject = proposal.sourceTitle {
+            if let link = proposal.sourceLink.flatMap(URL.init(string:)) {
+              Link(subject, destination: link).font(.caption2).lineLimit(1)
+            } else {
+              Text(subject).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+            }
+          }
+          Spacer()
+        }
+      }
+      Spacer(minLength: 0)
+      Button(action: accept) { Label("Accept", systemImage: "checkmark") }.buttonStyle(.borderedProminent)
+      Button(action: reject) { Image(systemName: "xmark") }.help("Reject — it won't be proposed again")
+    }
+    .padding(.vertical, 4)
+  }
+}
+
 enum ProjectFormMode: Identifiable {
   case new
   case edit(Project)
