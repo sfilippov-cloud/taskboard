@@ -117,11 +117,13 @@ A task can carry links — pull requests, Claude artifacts, commits, documents. 
 noted in the project journal.
 
 - **GitHub check** (`GitHub` button / "Check GitHub now"; the first run is manual, then every 60 minutes).
-  1. It asks GitHub (`gh`, read-only) for pull requests into `test` updated in the last 7 days, without bots and
-     the automatic `sync: production → test` ones.
+  1. It asks GitHub (`gh`, read-only) for pull requests into `test` of `JetSetBackend` and `monorepo` (all the
+     frontend apps) updated in the last 7 days, without bots, the automatic `sync: …` ones and the
+     `merge/dev-to-test-…` promotions.
   2. **No Claude here:** every link already on a task takes the PR's current state — open, merged, **live on
      test**. "Live" means the merge commit is part of the commit the stand reports on `/api/version/`
-     (GitHub's compare API); if the stand doesn't answer, what was known stays.
+     (GitHub's compare API); if the stand doesn't answer, what was known stays. Only the backend has such an
+     address: the frontend apps report no commit, so their PRs show open / merged but no "live".
   3. Pull requests not linked to any task and not seen before go to Claude, which matches them **by meaning**
      with your open tasks and **proposes**: attach this PR to task #N, optionally moving it (doing for an open PR,
      done only when a merged PR clearly completes the task). Nothing is attached until you accept; a rejected
@@ -132,7 +134,7 @@ noted in the project journal.
   task; otherwise it asks. The `wingform` profile has both. For another profile (e.g. your everyday one):
   `CLAUDE_PROFILE_DIR=~/.claude ./install.sh`.
 - Settings (`defaults write com.lozhka13.taskboard …`): `githubRepos` ("owner/name, owner/name", default
-  `JetSetProjects/JetSetBackend`), `githubBase` (`test`), `githubVersionURLs`
+  `JetSetProjects/JetSetBackend, JetSetProjects/monorepo`), `githubBase` (`test`), `githubVersionURLs`
   ("owner/name=https://…/api/version/, …"), `githubDays` (7), `githubSyncMinutes` (60, `0` — no automatic runs).
 
 ## Install

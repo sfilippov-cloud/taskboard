@@ -19,10 +19,10 @@ struct PullRequest: Equatable {
 
   var identity: String { "\(repo)#\(number)" }
 
-  // Automatic branch syncs, dependabot and the like: never worth matching with a task.
+  // Automatic branch syncs, promotions between environments, dependabot and the like: never worth matching with a task.
   var isNoise: Bool {
     isBot || author.hasPrefix("app/") || author.contains("[bot]") || branch.hasPrefix("sync/")
-      || title.lowercased().hasPrefix("sync:")
+      || branch.hasPrefix("merge/") || title.lowercased().hasPrefix("sync:")
   }
 
   var link: TaskLink {
@@ -47,7 +47,7 @@ enum GitHubClient {
 
   // Repositories to follow, "owner/name", comma-separated: defaults write com.lozhka13.taskboard githubRepos "a/b, c/d"
   static var repos: [String] {
-    let text = UserDefaults.standard.string(forKey: "githubRepos") ?? "JetSetProjects/JetSetBackend"
+    let text = UserDefaults.standard.string(forKey: "githubRepos") ?? "JetSetProjects/JetSetBackend, JetSetProjects/monorepo"
     return text.components(separatedBy: CharacterSet(charactersIn: ", \n")).filter { $0.contains("/") }
   }
 
