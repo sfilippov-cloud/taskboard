@@ -68,6 +68,7 @@ struct BoardView: View {
             $0.notes = updated.notes
             $0.project = updated.project
             $0.priority = updated.priority
+            $0.links = updated.links
           }
         }
       }
@@ -269,6 +270,7 @@ struct CardView: View {
       if let notes = task.notes {
         Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3)
       }
+      if !task.links.isEmpty { LinkChips(links: task.links) }
       if !waiting.isEmpty && task.column != .done {
         Text("waiting on " + waiting.map { "#\($0.id) \($0.title)" }.joined(separator: ", "))
           .font(.caption2).foregroundStyle(.orange).lineLimit(2)
@@ -296,6 +298,62 @@ struct CardView: View {
   }
 }
 
+// Pull requests, artifacts and other links on a card: a chip each, a click opens it.
+struct LinkChips: View {
+  let links: [TaskLink]
+
+  var body: some View {
+    HStack(spacing: 4) {
+      ForEach(Array(links.prefix(4)), id: \.url) { link in
+        if let url = URL(string: link.url) {
+          Link(destination: url) { chip(link) }.buttonStyle(.plain).help(helpText(link))
+        }
+      }
+      if links.count > 4 { Text("+\(links.count - 4)").font(.caption2).foregroundStyle(.secondary) }
+    }
+  }
+
+  private func chip(_ link: TaskLink) -> some View {
+    HStack(spacing: 3) {
+      Image(systemName: icon(link)).font(.caption2)
+      Text(link.chip).font(.caption2).lineLimit(1)
+      if let live = link.live, !live.isEmpty {
+        Image(systemName: "checkmark.seal.fill").font(.caption2)
+        Text(live.joined(separator: ",")).font(.caption2)
+      }
+    }
+    .padding(.horizontal, 6).padding(.vertical, 2)
+    .foregroundStyle(color(link))
+    .background(Capsule().fill(color(link).opacity(0.14)))
+  }
+
+  private func icon(_ link: TaskLink) -> String {
+    switch link.kind {
+    case "pr": link.state == "merged" ? "arrow.triangle.merge" : "arrow.triangle.pull"
+    case "artifact": "sparkles.rectangle.stack"
+    case "commit": "smallcircle.filled.circle"
+    default: "link"
+    }
+  }
+
+  private func color(_ link: TaskLink) -> Color {
+    guard link.kind == "pr" else { return .accentColor }
+    if link.live?.isEmpty == false { return .green }
+    switch link.state {
+    case "merged": return .purple
+    case "closed": return .secondary
+    default: return .blue
+    }
+  }
+
+  private func helpText(_ link: TaskLink) -> String {
+    var text = link.label
+    if let state = link.state { text += " — \(state)" }
+    if let live = link.live, !live.isEmpty { text += ", live on \(live.joined(separator: ", "))" }
+    return text
+  }
+}
+
 struct EditTaskView: View {
   @State var task: BoardTask
   let projects: [Project]
@@ -318,6 +376,19 @@ struct EditTaskView: View {
       }
       Picker("Priority", selection: $task.priority) {
         ForEach(Priority.allCases, id: \.self) { Text($0.label).tag($0) }
+      }
+      if !task.links.isEmpty {
+        Section("Links") {
+          ForEach(task.links, id: \.url) { link in
+            HStack {
+              Image(systemName: link.kind == "pr" ? "arrow.triangle.pull" : link.kind == "artifact" ? "sparkles.rectangle.stack" : "link")
+              Text(link.label).lineLimit(1)
+              Spacer()
+              Button { task.links.removeAll { $0.url == link.url } } label: { Image(systemName: "xmark.circle") }
+                .buttonStyle(.plain).help("Remove this link")
+            }
+          }
+        }
       }
       TextField(
         "Notes", text: Binding(get: { task.notes ?? "" }, set: { task.notes = $0.isBlank ? nil : $0 }),
