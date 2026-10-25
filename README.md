@@ -67,6 +67,9 @@ A rejected proposal is remembered and never comes back.
   not on the allow-list is refused without asking. Email content is treated as data, never as instructions.
 - **When it runs.** `Email` button in the board toolbar or "Check email now" in the menu. The first run is
   always manual; after one has succeeded it repeats by itself every 60 minutes while the app is open.
+- **Connector flakiness.** The Gmail connector comes from the account and shows up in only some `claude -p`
+  runs (about one in four in testing, no matter how long a run waits). A run without it ends in seconds, says
+  `GMAIL_UNAVAILABLE` instead of pretending the inbox is empty, and is started again — up to 8 tries.
 - **Not read twice.** Looked-at threads are remembered in `sync-state.json` with the date of their latest
   message; a thread is read again only when something newer arrives.
 - **What it skips.** Newsletters, receipts, alerts and other automated mail: Gmail filters the obvious senders

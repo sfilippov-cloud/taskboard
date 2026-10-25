@@ -6,12 +6,15 @@ enum ClaudeError: LocalizedError {
   case notFound
   case failed(String)
   case timedOut
+  case gmailUnavailable
 
   var errorDescription: String? {
     switch self {
     case .notFound: "claude not found (~/.local/bin/claude)"
     case .failed(let output): "Claude failed: \(output.prefix(300))"
     case .timedOut: "Claude didn't respond in time"
+    case .gmailUnavailable:
+      "The Gmail connector didn't come up in \(ClaudeRunner.syncAttempts) tries (claude.ai → Connectors, wingform profile); try again in a minute"
     }
   }
 }
@@ -106,7 +109,9 @@ enum ClaudeRunner {
     quotes as they are.
 
     1. email_state (what was already checked), list_projects (names and descriptions), list_tasks and \
-    list_proposals.
+    list_proposals. Before searching, check that you have the Gmail tool \
+    mcp__claude_ai_Gmail__search_threads. If it is missing, stop at once and answer exactly \
+    GMAIL_UNAVAILABLE — never report an empty inbox you couldn't look at.
     2. Search Gmail with the query given in the request; page through at most 60 threads, newest first. Open \
     a thread with get_thread only if it is not in email_state or its latest message is newer than recorded.
     3. Skip, without a proposal or a journal entry: newsletters, marketing, receipts, calendar \
@@ -142,8 +147,18 @@ enum ClaudeRunner {
     "update_message_labels",
   ].map { "mcp__claude_ai_Gmail__" + $0 }
 
+  // The Gmail connector comes from the account and shows up in only some `claude -p` runs (roughly one in
+  // four in testing), independent of how long the run waits. A run without it ends in seconds and costs almost
+  // nothing, so it is simply started again.
+  static let syncAttempts = 8
+
   static func syncEmail(prompt: String) async throws -> String {
-    try await run(prompt: prompt, system: emailPrompt, source: "email", sync: true)
+    for attempt in 1...syncAttempts {
+      let summary = try await run(prompt: prompt, system: emailPrompt, source: "email", sync: true)
+      if !summary.contains("GMAIL_UNAVAILABLE") { return summary }
+      if attempt < syncAttempts { try? await Task.sleep(for: .seconds(3)) }
+    }
+    throw ClaudeError.gmailUnavailable
   }
 
   static func process(transcript: String) async throws -> String {
