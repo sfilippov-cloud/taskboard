@@ -73,6 +73,14 @@ extension Board {
     var lines = [summary(task, withNotes: true), "Column: \(task.column.title), source: \(task.source)"]
     let path = ancestors(of: id).reversed().map { "#\($0.id) \($0.title)" }
     if !path.isEmpty { lines.append("Part of: " + path.joined(separator: " › ")) }
+    if !task.links.isEmpty {
+      lines.append(
+        "Links:\n"
+          + task.links.map { link in
+            "  " + link.label + (link.state.map { " [\($0)" + (link.live.map { ", live on " + $0.joined(separator: ", ") } ?? "") + "]" } ?? "")
+              + " " + link.url
+          }.joined(separator: "\n"))
+    }
     let children = children(of: id)
     if !children.isEmpty { lines.append("Subtasks:\n" + children.map { "  " + summary($0) }.joined(separator: "\n")) }
     let dependencies = task.dependsOn.compactMap { self.task($0) }

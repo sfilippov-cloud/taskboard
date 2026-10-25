@@ -225,6 +225,55 @@ let tools: [[String: Any]] = [
       ], required: ["id", "column", "reason"]),
   ],
   [
+    "name": "attach_link",
+    "description":
+      "Attach a link to a task: a Claude artifact you just published, a pull request, a commit, a document. Use it right after you publish an Artifact (or open a PR) that belongs to a task on the board — pick the task from list_tasks only when it is clear which one; otherwise leave it and tell the user. Repeating a link is harmless.",
+    "inputSchema": schema(
+      [
+        "id": idProperty, "url": ["type": "string", "description": "http(s) URL"],
+        "title": ["type": "string", "description": "Short name shown on the task"],
+        "kind": ["type": "string", "enum": ["artifact", "pr", "commit", "link"], "description": "Default: artifact"],
+        "repo": ["type": "string", "description": "owner/name, for a pull request"],
+        "number": ["type": "integer", "description": "Pull request number"],
+      ], required: ["id", "url", "title"]),
+  ],
+  [
+    "name": "propose_link",
+    "description":
+      "Propose attaching a pull request to an open task it clearly implements or advances, and optionally moving the task (doing when the PR is open, done only when a merged PR clearly completes it). It is NOT attached until the user accepts. Refused if the task already has the PR or the same proposal is waiting or was rejected.",
+    "inputSchema": schema(
+      [
+        "id": idProperty, "url": ["type": "string"], "title": ["type": "string", "description": "The PR's title"],
+        "repo": ["type": "string", "description": "owner/name"], "number": ["type": "integer"],
+        "state": ["type": "string", "enum": ["open", "merged", "closed"]],
+        "move_to": ["type": "string", "enum": ["doing", "done"], "description": "Optional: move the task as well"],
+        "reason": ["type": "string", "description": "One line: why this PR is that task"],
+      ], required: ["id", "url", "title", "repo", "number", "state", "reason"]),
+  ],
+  [
+    "name": "github_state",
+    "description":
+      "What the GitHub check has already looked at: the last run and the pull requests checked (\"owner/name#12\" → updatedAt when seen).",
+    "inputSchema": schema([:]),
+    "annotations": ["readOnlyHint": true],
+  ],
+  [
+    "name": "record_github_checked",
+    "description":
+      "Record the pull requests you looked at — matched or not — with their updatedAt, so the next run skips them until they change.",
+    "inputSchema": schema(
+      [
+        "pull_requests": [
+          "type": "array",
+          "items": schema(
+            [
+              "ref": ["type": "string", "description": "owner/name#number"],
+              "updated_at": ["type": "string", "description": "ISO 8601"],
+            ], required: ["ref", "updated_at"]),
+        ]
+      ], required: ["pull_requests"]),
+  ],
+  [
     "name": "slack_state",
     "description":
       "What the Slack check has already looked at: the last run and the channels checked (\"slack:<channel>\" → date of the latest message seen). Read only what is newer.",
@@ -278,6 +327,7 @@ let tools: [[String: Any]] = [
 let mode = ProcessInfo.processInfo.environment["TASKBOARD_MODE"] ?? ""
 let syncOnlyTools: Set<String> = [
   "propose_task", "propose_status_change", "email_state", "record_email_checked", "slack_state", "record_slack_checked",
+  "propose_link", "github_state", "record_github_checked",
 ]
 let syncAllowedTools: Set<String> = syncOnlyTools.union([
   "list_projects", "list_tasks", "get_task", "read_log", "log_entry", "list_proposals",
@@ -376,10 +426,62 @@ func callTool(_ name: String, _ arguments: [String: Any]) throws -> String {
   case "email_state":
     let state = SyncStore.load()
     var lines = ["Last run: " + (state.lastRun.map { ProjectLog.stamp($0) } ?? "never")]
-    let checked = state.threads.filter { !$0.key.hasPrefix("slack:") }.sorted { $0.value > $1.value }
+    let checked = state.threads.filter { !$0.key.hasPrefix("slack:") && !$0.key.hasPrefix("gh:") }.sorted { $0.value > $1.value }
     lines.append(checked.isEmpty ? "No threads recorded yet." : "Threads already checked (id → latest message seen):")
     lines += checked.map { "\($0.key) → \(ISO8601DateFormatter().string(from: $0.value))" }
     return lines.joined(separator: "\n")
+
+  case "attach_link":
+    let id = try id(arguments)
+    guard let url = (arguments["url"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !url.isEmpty
+    else { throw ToolError("A url is required") }
+    guard let title = (arguments["title"] as? String).nonEmpty else { throw ToolError("A title is required") }
+    let kind = (arguments["kind"] as? String).nonEmpty ?? "artifact"
+    guard ["artifact", "pr", "commit", "link"].contains(kind) else { throw ToolError("kind: artifact, pr, commit or link") }
+    let link = TaskLink(
+      kind: kind, title: title, url: url, repo: arguments["repo"] as? String, number: number(arguments["number"]))
+    return try BoardStore.change(source: source) { board in
+      let added = try board.attach(link, to: id)
+      let task = board.task(id)!
+      return (added ? "Attached to #\(id) \(task.title): " : "#\(id) already has it: ") + link.label
+    }
+
+  case "propose_link":
+    let id = try id(arguments)
+    guard let url = (arguments["url"] as? String).nonEmpty, let title = (arguments["title"] as? String).nonEmpty,
+      let repo = (arguments["repo"] as? String).nonEmpty, let number = number(arguments["number"])
+    else { throw ToolError("url, title, repo and number are required") }
+    let move: Column? = (arguments["move_to"] as? String).flatMap { Column(loose: $0) }
+    let link = TaskLink(
+      kind: "pr", title: title, url: url, repo: repo, number: number, state: (arguments["state"] as? String).nonEmpty)
+    let draft = try draft(arguments.merging(["title": title]) { a, _ in a })
+    let proposal = try BoardStore.change(source: source) { try $0.proposeLink(id, link, moveTo: move, draft) }
+    return "Proposed (waiting for the user): " + link.label + " → #\(id)" + (proposal.column.map { " · move to \($0.title)" } ?? "")
+
+  case "github_state":
+    let state = SyncStore.load()
+    var lines = ["Last run: " + (state.githubLastRun.map { ProjectLog.stamp($0) } ?? "never")]
+    let checked = state.threads.filter { $0.key.hasPrefix("gh:") }.sorted { $0.value > $1.value }
+    lines.append(checked.isEmpty ? "Nothing recorded yet." : "Already looked at (pull request → updatedAt):")
+    lines += checked.map { "\($0.key.dropFirst(3)) → \(ISO8601DateFormatter().string(from: $0.value))" }
+    return lines.joined(separator: "\n")
+
+  case "record_github_checked":
+    guard let raw = arguments["pull_requests"] as? [[String: Any]], !raw.isEmpty else {
+      throw ToolError("A pull_requests list is required")
+    }
+    let entries = try raw.map { item -> (String, Date) in
+      guard let ref = (item["ref"] as? String).nonEmpty else { throw ToolError("Every entry needs a ref") }
+      guard let text = item["updated_at"] as? String, let date = SyncStore.parseDate(text) else {
+        throw ToolError("\(ref): updated_at must be ISO 8601")
+      }
+      return ("gh:" + ref, date)
+    }
+    try SyncStore.change { state in
+      for (key, date) in entries { state.record(thread: key, lastMessage: date) }
+      state.prune()
+    }
+    return "Recorded \(entries.count) pull request(s)."
 
   case "slack_state":
     let state = SyncStore.load()

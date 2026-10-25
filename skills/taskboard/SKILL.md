@@ -91,3 +91,15 @@ a folder with the journal and documents.
   project". Never drop it, never force it into the wrong project, never invent a project for it.
 - Write everything you create — titles, notes, journal entries — in English, keeping proper names, product
   terms and quotes as they are.
+
+## Links: artifacts, pull requests
+
+Tasks carry links — pull requests, Claude artifacts, commits, documents. The card shows them as chips.
+
+- **Attach what you produce.** Right after you publish a Claude **Artifact** (or open a pull request, or write a
+  document) that belongs to a task on the board, call `attach_link` with the task, the URL and a short title
+  (`kind: artifact` by default). Find the task with `list_tasks` and attach only when it is **clear** which
+  task it is; if it isn't, don't guess — say which tasks it could belong to and let the user pick. Attaching
+  twice is harmless.
+- Pull requests are also picked up by the GitHub check: it keeps their state (open, merged, live on test)
+  current and proposes which task a PR belongs to. Attach one by hand only when the user asks.
