@@ -21,6 +21,7 @@ struct BoardView: View {
   @State private var filter = ProjectFilter.all
   @State private var projectForm: ProjectFormMode?
   @State private var showNote = false
+  @State private var linkTarget: BoardTask?
   @State private var dropTargeted = false
 
   private var selected: Project? {
@@ -36,7 +37,9 @@ struct BoardView: View {
       case .board:
         HStack(alignment: .top, spacing: 12) {
           ForEach(Column.allCases, id: \.self) { column in
-            ColumnView(column: column, model: model, filter: matches, edit: { editing = $0 })
+            ColumnView(
+              column: column, model: model, filter: matches, edit: { editing = $0 }, askLink: { linkTarget = $0 },
+              attach: attachLink)
           }
         }
         .padding(12)
@@ -66,7 +69,9 @@ struct BoardView: View {
         addUpdate: { text in
           model.change(source: "manual") { board in try board.addUpdate(task.id, text: text, source: "manual") }
         },
-        removeUpdate: { updateID in model.change { board in try board.removeUpdate(updateID, from: task.id) } }
+        removeUpdate: { updateID in model.change { board in try board.removeUpdate(updateID, from: task.id) } },
+        links: model.board.task(task.id)?.links ?? [], addLink: { url, title in attachLink(task.id, url, title) },
+        removeLink: { url in model.change(source: "manual") { board in try board.removeLink(url, from: task.id) } }
       ) { updated in
         model.change { board in
           _ = try board.update(task.id) {
@@ -75,7 +80,6 @@ struct BoardView: View {
             $0.project = updated.project
             $0.owner = updated.owner
             $0.priority = updated.priority
-            $0.links = updated.links
           }
         }
       }
@@ -95,6 +99,9 @@ struct BoardView: View {
           }
         }
       }
+    }
+    .sheet(item: $linkTarget) { task in
+      AddLinkSheet(task: task) { url, title in attachLink(task.id, url, title) }
     }
     .sheet(isPresented: $showNote) {
       NoteSheet(projects: model.board.activeProjects, preselected: selected) { text, project in
@@ -173,6 +180,14 @@ struct BoardView: View {
     newTitle = ""
   }
 
+  // Adds a link typed, pasted or dropped by the user; returns what to tell them if it didn't work.
+  private func attachLink(_ taskID: Int, _ url: String, _ title: String?) -> String? {
+    guard let link = TaskLink.detect(url: url, title: title) else { return "That isn't a web link (http or https)" }
+    var added = false
+    model.change(source: "manual") { board in added = try board.attach(link, to: taskID) }
+    return added ? nil : "This task already has that link"
+  }
+
   private func pickFiles() {
     let panel = NSOpenPanel()
     panel.allowsMultipleSelection = true
@@ -187,6 +202,8 @@ struct ColumnView: View {
   let model: AppModel
   let filter: (BoardTask) -> Bool
   let edit: (BoardTask) -> Void
+  let askLink: (BoardTask) -> Void
+  let attach: (Int, String, String?) -> String?
   @State private var targeted = false
 
   var body: some View {
@@ -206,6 +223,12 @@ struct ColumnView: View {
               .draggable(String(task.id))
               .onTapGesture(count: 2) { edit(task) }
               .contextMenu { menu(for: task) }
+              // A web link dragged from a browser onto a card is attached to it; files fall through to the window.
+              .dropDestination(for: URL.self) { urls, _ in
+                let web = urls.filter { !$0.isFileURL }
+                for url in web { _ = attach(task.id, url.absoluteString, nil) }
+                return !web.isEmpty
+              }
           }
         }
         .frame(maxWidth: .infinity)
@@ -225,9 +248,21 @@ struct ColumnView: View {
     } isTargeted: { targeted = $0 }
   }
 
+  // The clipboard text, if it is a web link.
+  private static var clipboardLink: String? {
+    guard let text = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
+      TaskLink.detect(url: text) != nil
+    else { return nil }
+    return text
+  }
+
   @ViewBuilder
   private func menu(for task: BoardTask) -> some View {
     Button("Edit…") { edit(task) }
+    Button("Add link…") { askLink(task) }
+    if let url = Self.clipboardLink {
+      Button("Paste link: \(TaskLink.detect(url: url)?.chip ?? url)") { _ = attach(task.id, url, nil) }
+    }
     ForEach(Column.allCases.filter { $0 != task.column }, id: \.self) { target in
       Button("→ \(target.title)") { model.change { board in _ = try board.update(task.id) { $0.column = target } } }
     }
@@ -396,8 +431,14 @@ struct EditTaskView: View {
   let updates: [TaskUpdate]  // live from the board: news may arrive while the window is open
   let addUpdate: (String) -> Void
   let removeUpdate: (String) -> Void
+  let links: [TaskLink]  // live from the board, like updates: a pull request may be linked while the window is open
+  let addLink: (String, String?) -> String?  // url, title → an error message, or nil when added
+  let removeLink: (String) -> Void
   let save: (BoardTask) -> Void
   @State private var newUpdate = ""
+  @State private var newLinkURL = ""
+  @State private var newLinkTitle = ""
+  @State private var linkError: String?
   @Environment(\.dismiss) private var dismiss
 
   // The current project stays selectable even if it has been archived since.
@@ -405,6 +446,15 @@ struct EditTaskView: View {
     var names = projects.map(\.name)
     if let current = task.project, !names.contains(current) { names.append(current) }
     return names
+  }
+
+  private func submitLink() {
+    guard !newLinkURL.isBlank else { return }
+    linkError = addLink(newLinkURL, newLinkTitle.isBlank ? nil : newLinkTitle)
+    if linkError == nil {
+      newLinkURL = ""
+      newLinkTitle = ""
+    }
   }
 
   private func submitUpdate() {
@@ -425,16 +475,24 @@ struct EditTaskView: View {
       Picker("Priority", selection: $task.priority) {
         ForEach(Priority.allCases, id: \.self) { Text($0.label).tag($0) }
       }
-      if !task.links.isEmpty {
-        Section("Links") {
-          ForEach(task.links, id: \.url) { link in
-            HStack {
-              Image(systemName: link.kind == "pr" ? "arrow.triangle.pull" : link.kind == "artifact" ? "sparkles.rectangle.stack" : "link")
+      Section("Links") {
+        HStack {
+          TextField("Paste a link — Enter", text: $newLinkURL).onSubmit(submitLink)
+          TextField("Title (optional)", text: $newLinkTitle).onSubmit(submitLink).frame(width: 150)
+          Button("Add", action: submitLink).disabled(newLinkURL.isBlank)
+        }
+        if let linkError { Text(linkError).font(.caption).foregroundStyle(.red) }
+        ForEach(links, id: \.url) { link in
+          HStack {
+            Image(systemName: link.kind == "pr" ? "arrow.triangle.pull" : link.kind == "artifact" ? "sparkles.rectangle.stack" : link.kind == "commit" ? "smallcircle.filled.circle" : "link")
+            if let url = URL(string: link.url) {
+              Link(link.label, destination: url).lineLimit(1).help(link.url)
+            } else {
               Text(link.label).lineLimit(1)
-              Spacer()
-              Button { task.links.removeAll { $0.url == link.url } } label: { Image(systemName: "xmark.circle") }
-                .buttonStyle(.plain).help("Remove this link")
             }
+            Spacer()
+            Button { removeLink(link.url) } label: { Image(systemName: "xmark.circle") }
+              .buttonStyle(.plain).help("Remove this link")
           }
         }
       }
@@ -562,5 +620,47 @@ struct ProjectTab: View {
   private var fill: Color {
     if targeted { return Color.accentColor.opacity(0.3) }
     return isSelected ? Color.accentColor.opacity(0.2) : Color.primary.opacity(0.06)
+  }
+}
+
+// "Add link…" from a card's menu: a URL and an optional title.
+struct AddLinkSheet: View {
+  let task: BoardTask
+  let add: (String, String?) -> String?
+  @State private var url = ""
+  @State private var title = ""
+  @State private var error: String?
+  @Environment(\.dismiss) private var dismiss
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text("Add a link to #\(task.id) \(task.title)").font(.headline).lineLimit(2)
+      TextField("https://…", text: $url).onSubmit(submit)
+      TextField("Title (optional — a name is made from the address)", text: $title).onSubmit(submit)
+      Text("Pull requests, commits and Claude artifacts are recognised; anything else is kept as a plain link.")
+        .font(.caption).foregroundStyle(.secondary)
+      if let error { Text(error).font(.caption).foregroundStyle(.red) }
+      HStack {
+        Spacer()
+        Button("Cancel") { dismiss() }
+        Button("Add", action: submit).keyboardShortcut(.defaultAction).disabled(url.isBlank)
+      }
+    }
+    .padding()
+    .frame(width: 460)
+    .onAppear {
+      // A link on the clipboard is the likely thing to add.
+      if let text = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
+        TaskLink.detect(url: text) != nil
+      {
+        url = text
+      }
+    }
+  }
+
+  private func submit() {
+    guard !url.isBlank else { return }
+    error = add(url, title.isBlank ? nil : title)
+    if error == nil { dismiss() }
   }
 }

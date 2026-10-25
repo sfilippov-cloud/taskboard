@@ -84,3 +84,33 @@ import Testing
     #expect(try BoardStore.decoder.decode(BoardTask.self, from: Data(json.utf8)).links.isEmpty)
   }
 }
+
+@Suite struct DetectLinkTests {
+  @Test func pullRequestsKeepRepoAndNumber() throws {
+    let link = try #require(TaskLink.detect(url: " https://github.com/JetSetProjects/monorepo/pull/2314/files?w=1 "))
+    #expect(link.kind == "pr" && link.repo == "JetSetProjects/monorepo" && link.number == 2314)
+    #expect(link.url == "https://github.com/JetSetProjects/monorepo/pull/2314" && link.title == "JetSetProjects/monorepo#2314")
+    #expect(link.identity == "JetSetProjects/monorepo#2314")  // the GitHub check recognises it
+    #expect(TaskLink.detect(url: "https://github.com/o/r/pull/9", title: "AML")?.title == "AML")
+  }
+
+  @Test func commitsAndArtifacts() throws {
+    let commit = try #require(TaskLink.detect(url: "https://github.com/o/r/commit/76b82e049a3fa63541cd8dc2bdc9435ad3efb4a1"))
+    #expect(commit.kind == "commit" && commit.title == "o/r@76b82e0")
+    let artifact = try #require(TaskLink.detect(url: "https://claude.ai/artifact/abc123"))
+    #expect(artifact.kind == "artifact" && artifact.title == "Claude artifact")
+  }
+
+  @Test func otherLinksAreNamedByHostAndPath() throws {
+    let doc = try #require(TaskLink.detect(url: "https://docs.google.com/document/d/1AbC/edit"))
+    #expect(doc.kind == "link" && doc.title == "docs.google.com › edit")
+    #expect(TaskLink.detect(url: "https://www.example.com")?.title == "example.com")
+    #expect(TaskLink.detect(url: "https://example.com/a", title: "  Spec v2 ")?.title == "Spec v2")
+  }
+
+  @Test func onlyWebLinksPass() {
+    for bad in ["", "   ", "not a link", "file:///etc/passwd", "javascript:alert(1)", "ftp://x.y/z", "https://", "mailto:a@b.c"] {
+      #expect(TaskLink.detect(url: bad) == nil, "\(bad)")
+    }
+  }
+}

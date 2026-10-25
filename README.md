@@ -153,9 +153,20 @@ conversation: the clipboard button next to "checked …" — useful when a propo
 
 ## Links on tasks: pull requests and artifacts
 
-A task can carry links — pull requests, Claude artifacts, commits, documents. They show as chips on the card
-(click opens them); the edit sheet lists them with a remove button. Every link added or changing state is
+A task can carry links — pull requests, Claude artifacts, commits, documents, any web page. They show as chips on
+the card (click opens them); the task window lists them with a remove button. Every link added or changing state is
 noted in the project journal.
+
+**Adding a link yourself**, three ways:
+- in the task window (double-click the card): paste the address into "Paste a link", optionally give it a title, Enter;
+- right-click a card: **Add link…** (the clipboard's link is prefilled), or **Paste link: …** when the clipboard
+  already holds one — a single click;
+- drag a link from the browser onto a card.
+
+A GitHub pull request or commit and a Claude artifact are recognised as such (a pull request keeps its repo and
+number, so the GitHub check keeps its state current while it is in the checked window); anything else is a plain link,
+named after its host and the last part of the path unless you give a title. Only http(s) addresses are accepted;
+the same link isn't added twice.
 
 - **GitHub check** (`GitHub` button / "Check GitHub now"; the first run is manual, then every 60 minutes).
   1. It asks GitHub (`gh`, read-only) for pull requests into `test` of `JetSetBackend` and `monorepo` (all the

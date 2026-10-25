@@ -92,6 +92,36 @@ extension Board {
 }
 
 extension TaskLink {
+  // A link the user typed, pasted or dropped: only http(s). GitHub pull requests and commits and Claude artifacts are
+  // recognised (a PR then keeps its repo and number, so the GitHub check can keep its state current); anything else is
+  // a plain link, named by its host and last path part unless a title is given.
+  public static func detect(url text: String, title: String? = nil) -> TaskLink? {
+    let raw = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let url = URL(string: raw), let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+      let host = url.host?.lowercased(), !host.isEmpty
+    else { return nil }
+    let name = title.nonEmpty
+    let parts = url.pathComponents.filter { $0 != "/" }
+    if host == "github.com" || host == "www.github.com", parts.count >= 4 {
+      let repo = "\(parts[0])/\(parts[1])"
+      if parts[2] == "pull", let number = Int(parts[3]) {
+        return TaskLink(
+          kind: "pr", title: name ?? "\(repo)#\(number)", url: "https://github.com/\(repo)/pull/\(number)", repo: repo, number: number)
+      }
+      if parts[2] == "commit", parts[3].count >= 7 {
+        return TaskLink(kind: "commit", title: name ?? "\(repo)@\(parts[3].prefix(7))", url: "https://github.com/\(repo)/commit/\(parts[3])", repo: repo)
+      }
+    }
+    if host == "claude.ai", parts.contains("artifact") {
+      return TaskLink(kind: "artifact", title: name ?? "Claude artifact", url: raw)
+    }
+    let shownHost = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    var fallback = shownHost
+    if let last = parts.last { fallback += " › " + (last.removingPercentEncoding ?? last) }
+    if fallback.count > 48 { fallback = String(fallback.prefix(47)) + "…" }
+    return TaskLink(kind: "link", title: name ?? fallback, url: raw)
+  }
+
   // "PR owner/name#12 “title”" / "artifact “title”".
   public var label: String {
     switch kind {
