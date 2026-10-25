@@ -130,6 +130,11 @@ enum ClaudeRunner {
     date of its latest message (ISO 8601).
     6. Never reply, draft, send, label, delete or forward — you can't, and must not try.
 
+    Before the final line write a short report so the user can see what you covered, one line per thread \
+    you looked at: `sender | subject | what you did` (skipped with a reason, journal, proposal, or nothing), \
+    then one line `Not covered: …` for anything you could not or did not read and why (a missing tool, \
+    more threads than the limit, an unreadable message) — or `Not covered: nothing`.
+
     Finish with one line in English: "Checked N threads: X proposals, Y journal entries."
     """
 
@@ -212,6 +217,12 @@ enum ClaudeRunner {
     6. Finally call record_slack_checked for EVERY channel, DM or thread you read, skipped ones included, with \
     the date of its latest message (ISO 8601).
     7. Never post, reply, react, edit, schedule or upload — you can't, and must not try.
+
+    Before the final line write a short report so the user can see what you covered — names, counts and \
+    outcomes only, NEVER message text: one line per channel, DM or thread you looked at: `name | number of \
+    new messages | what you did` (skipped with a reason, journal, proposal, or nothing), then a line \
+    `Not found: …` naming conversations you expected (a mapped channel you could not find or read, DMs you \
+    could not list) and any limit you hit (search result caps, no access) — or `Not found: nothing`.
 
     Finish with one line in English: "Checked N conversations: X proposals, Y journal entries."
     """
@@ -301,7 +312,8 @@ enum ClaudeRunner {
         } else if process.terminationStatus != 0 {
           continuation.resume(throwing: ClaudeError.failed(text))
         } else {
-          continuation.resume(returning: text.components(separatedBy: "\n").last(where: { !$0.isBlank }) ?? text)
+          // A check returns its whole output (report + summary line); the others only the last line.
+          continuation.resume(returning: sync ? text : text.components(separatedBy: "\n").last(where: { !$0.isBlank }) ?? text)
         }
       }
       do {

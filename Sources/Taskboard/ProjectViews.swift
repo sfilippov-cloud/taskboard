@@ -110,10 +110,16 @@ struct DocumentsView: View {
 struct SyncButton: View {
   let model: AppModel
   let kind: SyncKind
+  @State private var showReport = false
 
   var body: some View {
     let running = model.isSyncing(kind)
     HStack(spacing: 6) {
+      if let report = model.sync.report(kind), !running {
+        Button { showReport = true } label: { Image(systemName: "list.bullet.clipboard") }
+          .buttonStyle(.plain).help("What the last \(kind.title) check looked at")
+          .popover(isPresented: $showReport) { CheckReportView(kind: kind, report: report) }
+      }
       if let error = model.sync.lastError(kind), !running {
         Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).help(error)
       } else if let last = model.sync.lastRun(kind), !running {
@@ -132,6 +138,24 @@ struct SyncButton: View {
           ? "Check the inbox for the last few days: journal entries and proposals (read-only)"
           : "Check Slack — mapped channels, mentions and direct messages — for the last few days (read-only)")
     }
+  }
+}
+
+// What a check looked at — names, counts and outcomes, never message text — so gaps in coverage are visible.
+struct CheckReportView: View {
+  let kind: SyncKind
+  let report: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Last \(kind.title) check — what it looked at").font(.headline)
+      ScrollView {
+        Text(report).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+    .padding(14)
+    .frame(width: 520, height: 320)
   }
 }
 

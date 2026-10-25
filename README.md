@@ -70,6 +70,8 @@ A rejected proposal is remembered and never comes back.
 - **Connector flakiness.** The Gmail connector comes from the account and shows up in only some `claude -p`
   runs (about one in four in testing, no matter how long a run waits). A run without it ends in seconds, says
   `GMAIL_UNAVAILABLE` instead of pretending the inbox is empty, and is started again — up to 8 tries.
+- **Report.** The email check also ends with a report (sender, subject and outcome per thread, plus a
+  "Not covered" line); the clipboard button next to the "checked …" time opens it.
 - **Not read twice.** Looked-at threads are remembered in `sync-state.json` with the date of their latest
   message; a thread is read again only when something newer arrives.
 - **What it skips.** Newsletters, receipts, alerts and other automated mail: Gmail filters the obvious senders
@@ -101,6 +103,10 @@ task until you accept.
   then every 60 minutes while the app is open. Only what is newer than the last run is read
   (`sync-state.json`). Like Gmail, the connector shows up in only some `claude -p` runs, so a run that doesn't
   see it says `SLACK_UNAVAILABLE` and is retried (up to 8 times).
+- **Report.** Every check ends with a report of what it looked at — one line per conversation or thread
+  (name, number of new messages, what it did with it) plus a "Not found / Not covered" line for anything it
+  expected but couldn't read — never message text. The clipboard button next to the "checked …" time opens it,
+  so a gap in coverage is visible. It is kept in `sync-state.json` until the next successful check.
 - Settings: `slackDays` (3), `slackSyncMinutes` (60, `0` turns automatic runs off).
 - One workspace only for now; several workspaces are not supported yet.
 

@@ -18,8 +18,14 @@ enum SyncKind: String, CaseIterable {
 extension SyncState {
   func lastRun(_ kind: SyncKind) -> Date? { kind == .email ? lastRun : slackLastRun }
   func lastError(_ kind: SyncKind) -> String? { kind == .email ? lastError : slackLastError }
+  func report(_ kind: SyncKind) -> String? { reports?[kind.rawValue] }
 
-  mutating func finish(_ kind: SyncKind, error: String?) {
+  mutating func finish(_ kind: SyncKind, error: String?, report: String? = nil) {
+    if error == nil {
+      var all = reports ?? [:]
+      all[kind.rawValue] = report
+      reports = all.isEmpty ? nil : all
+    }
     switch kind {
     case .email:
       if error == nil { lastRun = Date() }
@@ -59,15 +65,17 @@ extension AppModel {
       let now = Date().formatted(.iso8601.year().month().day().time(includingFractionalSeconds: false))
       let window = "Now: \(now) (\(TimeZone.current.identifier)). Look at the last \(kind.days) days."
       do {
-        let summary: String
+        let text: String
         switch kind {
         case .email:
-          summary = try await ClaudeRunner.syncEmail(prompt: "Check the inbox. \(window)\nGmail search query: \(Self.emailQuery)")
+          text = try await ClaudeRunner.syncEmail(prompt: "Check the inbox. \(window)\nGmail search query: \(Self.emailQuery)")
         case .slack:
-          summary = try await ClaudeRunner.syncSlack(
+          text = try await ClaudeRunner.syncSlack(
             prompt: "Check Slack. \(window)\nThe channels mapped to each project are in list_projects.")
         }
-        try? SyncStore.change { $0.finish(kind, error: nil) }
+        let output = CheckOutput(text)
+        let summary = output.summary
+        try? SyncStore.change { $0.finish(kind, error: nil, report: output.report) }
         reload()
         let added = board.proposals.count - before
         if manual || added > 0 { show(added > 0 ? "\(summary) (\(added) new proposal\(added == 1 ? "" : "s"))" : summary) }

@@ -102,3 +102,33 @@ import Testing
     }
   }
 }
+
+@Suite struct CheckOutputTests {
+  @Test func lastLineIsTheSummaryTheRestIsTheReport() {
+    let output = CheckOutput("""
+      REPORT
+      - #jssi | 4 new | journal
+
+      Not covered: none
+
+      Checked 2 conversations: 0 proposals, 1 journal entry.
+
+      """)
+    #expect(output.summary == "Checked 2 conversations: 0 proposals, 1 journal entry.")
+    #expect(output.report == "REPORT\n- #jssi | 4 new | journal\n\nNot covered: none")
+  }
+
+  @Test func aLoneLineHasNoReport() {
+    #expect(CheckOutput("Checked 0 threads.").report == nil)
+    #expect(CheckOutput("").summary == "")
+  }
+
+  @Test func reportsRoundTripAndOldStateHasNone() throws {
+    var state = SyncState()
+    state.reports = ["slack": "x"]
+    let data = try BoardStore.encoder.encode(state)
+    #expect(try BoardStore.decoder.decode(SyncState.self, from: data).reports?["slack"] == "x")
+    let old = #"{"threads":{}}"#
+    #expect(try BoardStore.decoder.decode(SyncState.self, from: Data(old.utf8)).reports == nil)
+  }
+}
