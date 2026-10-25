@@ -116,6 +116,26 @@ task until you accept.
 - Settings: `slackDays` (3), `slackSyncMinutes` (60, `0` turns automatic runs off).
 - One workspace only for now; several workspaces are not supported yet.
 
+## Updates on a task
+
+Every task has a timeline of news: what an email, a Slack message, a document, a voice note or you said about it.
+The card shows the latest one (with "+N earlier"); the task window (double-click) shows all of them, newest first,
+each with a link to its source, a remove button, and a field to add your own.
+
+- **Where news comes from.** The email, Slack and document checks and voice notes call `add_task_update` for
+  news about one particular existing task — a deadline moved, a reply, a blocker, a decision, progress. It is
+  applied at once (it is a note, not a decision) and journaled in the project with the task number and the
+  source link. What concerns the project as a whole still goes to the project journal (`log_entry`).
+- **No repeats.** The same news isn't added twice; the newest 100 per task are kept. The task's own "updated"
+  time isn't touched, so a Done task doesn't live longer because mail arrived about it.
+- Existing journal entries aren't moved onto tasks: they were written without a task number.
+
+## Noticing proposals
+
+The number of proposals waiting is shown as a badge on the Dock icon and next to the menu bar icon (and as the
+widget's "Proposals · N" header and the board's **Proposals (N)** tab). A check reports what it did with every
+conversation: the clipboard button next to "checked …" — useful when a proposal you expected didn't come.
+
 ## Links on tasks: pull requests and artifacts
 
 A task can carry links — pull requests, Claude artifacts, commits, documents. They show as chips on the card

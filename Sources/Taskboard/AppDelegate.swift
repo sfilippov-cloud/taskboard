@@ -31,6 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       self?.updateWidgetVisibility()
       self?.updateIcon()
     }
+    model.onBoardChange = { [weak self] in self?.updateBadges() }
+    updateBadges()
     updateWidgetVisibility()
     NSApp.mainMenu = buildMainMenu()
     if Self.opensBoardAtLaunch { showBoard() }
@@ -75,6 +77,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if !key.isEmpty { item.keyEquivalentModifierMask = [.control, .option, .command] }
     item.target = self
     return item
+  }
+
+  // Proposals wait for a yes or no, and are easy to miss: the count goes on the Dock icon and next to the
+  // menu bar icon, and disappears when the queue is empty.
+  private func updateBadges() {
+    let count = model.board.proposals.count
+    NSApp.dockTile.badgeLabel = count > 0 ? String(count) : nil
+    statusItem.button?.title = count > 0 ? " \(count)" : ""
+    statusItem.button?.imagePosition = count > 0 ? .imageLeading : .imageOnly
+    statusItem.button?.toolTip = count > 0 ? "\(count) proposal\(count == 1 ? "" : "s") waiting" : nil
   }
 
   private func updateIcon() {

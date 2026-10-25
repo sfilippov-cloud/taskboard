@@ -23,6 +23,7 @@ final class AppModel {
     didSet { if activity != oldValue { onActivityChange?() } }
   }
   @ObservationIgnored var onActivityChange: (() -> Void)?
+  @ObservationIgnored var onBoardChange: (() -> Void)?
 
   @ObservationIgnored var ingestQueue: Task<Void, Never>?
   @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
@@ -34,7 +35,10 @@ final class AppModel {
 
   func reload() {
     let fresh = BoardStore.load()
-    if fresh != board { board = fresh }
+    if fresh != board {
+      board = fresh
+      onBoardChange?()
+    }
     let freshSync = SyncStore.load()
     if freshSync != sync { sync = freshSync }
   }

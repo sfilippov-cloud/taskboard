@@ -92,6 +92,18 @@ a folder with the journal and documents.
 - Write everything you create — titles, notes, journal entries — in English, keeping proper names, product
   terms and quotes as they are.
 
+## Updates on a task
+
+Each task has a timeline of news: what an email, a Slack message, a document or the user said about it. The card
+shows the last one; the task window shows all of them.
+
+- **News about one particular task** — a deadline moved, a reply arrived, a blocker, a decision, progress — goes to
+  `add_task_update` (id, one or two factual sentences with the date, and `link` to the source). It is applied at once
+  and journaled with the task number. The same news isn't added twice; `get_task` shows what is already there.
+- `log_entry` is for the project as a whole (a decision or status that isn't one task's). When in doubt about
+  which one: if you can name the task, it's an update.
+- To change the task itself (title, notes, priority) use `update_task`; to change its column, `move_task`.
+
 ## Links: artifacts, pull requests
 
 Tasks carry links — pull requests, Claude artifacts, commits, documents. The card shows them as chips.

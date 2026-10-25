@@ -65,7 +65,9 @@ enum ClaudeRunner {
     in one add_plan: the overall result is the parent, the parts are subtasks (parent), depends_on only where \
     a task truly can't start without another's result. You can hang a plan under an existing task (parent \
     "#12") or make it depend on one. Don't invent steps that weren't in the note.
-    4. If the note is about an existing task, extend it (update_task) instead of duplicating.
+    4. If the note is about an existing task, don't duplicate it: news or a fact about it (a new date, a \
+    reply, a blocker, progress) goes to add_task_update; update_task is for changing the task itself \
+    (title, notes, priority).
     5. "Took it", "starting" — move_task to doing; "done", "closed", "finished" — to done; "remove", \
     "cancel" — delete_task.
     6. A fact, decision, meeting outcome or deadline that isn't a task — log_entry to the right project: \
@@ -97,8 +99,9 @@ enum ClaudeRunner {
     the projects in list_projects. If it belongs to none of them, or you aren't sure, still create the task \
     and simply omit project — it then shows under "No project". Never drop a task for lack of a project, \
     never force it into the wrong one, and never create a new project for it.
-    4. If the document directly says an existing task is done or changed — update_task or move_task. In \
-    doubt, only record it in the journal.
+    4. If the document says something about an existing task — a date, a decision, a blocker, progress — \
+    add it with add_task_update (one or two sentences). If it directly says the task is done or has \
+    changed — update_task or move_task. In doubt, only record it in the journal.
 
     Finish with one short line in English: where you filed the document and what you did.
     """
@@ -121,9 +124,14 @@ enum ClaudeRunner {
     auto-replies, CI and monitoring alerts, social notifications, anything automated or not needing the \
     user's attention. A subject and snippet are enough to decide that.
     4. For threads that matter:
-    - log_entry into the project the thread clearly belongs to (omit project if none) when it holds a \
-    decision, deadline, status change or commitment worth remembering — 1–3 lines with dates, nothing that \
-    read_log already says; pass link = https://mail.google.com/mail/u/0/#all/<threadId>.
+    - add_task_update when the thread brings news about one particular EXISTING task — a deadline moved, \
+    an answer, a blocker, a decision, progress. Use the task id from list_tasks, write one or two sentences \
+    with the date, pass link = https://mail.google.com/mail/u/0/#all/<threadId>. This is what shows on the \
+    task; do it for every task a thread clearly concerns, and don't repeat news the task already has \
+    (get_task shows its updates).
+    - log_entry into the project the thread clearly belongs to (omit project if none) for what concerns the \
+    project as a whole rather than one task — a decision, deadline, status change or commitment worth \
+    remembering — 1–3 lines with dates, nothing that read_log already says; same link.
     - propose_task only when the user is explicitly asked to do something or has committed to something. \
     Put who asked and the deadline in reason; pass thread_id and subject. Set project only if the task \
     clearly belongs to one of the projects; otherwise omit it (it shows under "No project"). At most 10 \
@@ -232,9 +240,13 @@ enum ClaudeRunner {
     decision, a deadline), name the channel or person, and never copy personal, HR, salary, health or \
     other sensitive details into a journal entry, a proposal or its reason.
     5. For what matters:
-    - log_entry into the project it clearly belongs to (omit project if none) for a decision, deadline, \
-    status change or commitment worth remembering — 1–3 lines with dates, nothing read_log already says; \
-    pass link = the Slack permalink of the message.
+    - add_task_update when the conversation brings news about one particular EXISTING task — a deadline \
+    moved, an answer, a blocker, a decision, progress. Use the task id from list_tasks, one or two sentences \
+    with the date, link = the Slack permalink. This is what shows on the task; do it for every task a \
+    conversation clearly concerns, and don't repeat news the task already has (get_task shows its updates).
+    - log_entry into the project it clearly belongs to (omit project if none) for what concerns the project \
+    as a whole rather than one task — a decision, deadline, status change or commitment worth remembering — \
+    1–3 lines with dates, nothing read_log already says; link = the Slack permalink of the message.
     - propose_task only when the user is explicitly asked to do something or has committed to something. \
     Put who asked and the deadline in reason; pass thread_id = channel id + message timestamp, subject = \
     "#channel: short gist" and link = the permalink. Set project only if it clearly belongs to one of the \

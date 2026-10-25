@@ -61,7 +61,13 @@ struct BoardView: View {
       return !files.isEmpty
     } isTargeted: { dropTargeted = $0 }
     .sheet(item: $editing) { task in
-      EditTaskView(task: task, projects: model.board.activeProjects) { updated in
+      EditTaskView(
+        task: task, projects: model.board.activeProjects, updates: model.board.task(task.id)?.updates ?? [],
+        addUpdate: { text in
+          model.change(source: "manual") { board in try board.addUpdate(task.id, text: text, source: "manual") }
+        },
+        removeUpdate: { updateID in model.change { board in try board.removeUpdate(updateID, from: task.id) } }
+      ) { updated in
         model.change { board in
           _ = try board.update(task.id) {
             $0.title = updated.title
@@ -247,6 +253,9 @@ struct CardView: View {
     case "voice": "mic"
     case "claude": "sparkles"
     case "document": "doc.text"
+    case "email": "envelope"
+    case "slack": "number"
+    case "github": "arrow.triangle.pull"
     default: "keyboard"
     }
   }
@@ -270,6 +279,7 @@ struct CardView: View {
       if let notes = task.notes {
         Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3)
       }
+      if let latest = task.updates.last { LatestUpdate(update: latest, total: task.updates.count) }
       if !task.links.isEmpty { LinkChips(links: task.links) }
       if !waiting.isEmpty && task.column != .done {
         Text("waiting on " + waiting.map { "#\($0.id) \($0.title)" }.joined(separator: ", "))
@@ -295,6 +305,27 @@ struct CardView: View {
     .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor)))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.08)))
     .contentShape(Rectangle())
+  }
+}
+
+// The newest piece of news about a task, under its title; the task window has the whole timeline.
+struct LatestUpdate: View {
+  let update: TaskUpdate
+  let total: Int
+
+  var body: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 5) {
+      Image(systemName: CardView.icon(for: update.source)).font(.caption2).foregroundStyle(Color.accentColor)
+      Text(update.text).font(.caption).lineLimit(2)
+      Spacer(minLength: 0)
+      VStack(alignment: .trailing, spacing: 1) {
+        Text(update.date, format: .relative(presentation: .named)).font(.caption2).foregroundStyle(.tertiary)
+        if total > 1 { Text("+\(total - 1) earlier").font(.caption2).foregroundStyle(.tertiary) }
+      }
+    }
+    .padding(.horizontal, 6).padding(.vertical, 4)
+    .background(RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(0.08)))
+    .help(update.text)
   }
 }
 
@@ -357,7 +388,11 @@ struct LinkChips: View {
 struct EditTaskView: View {
   @State var task: BoardTask
   let projects: [Project]
+  let updates: [TaskUpdate]  // live from the board: news may arrive while the window is open
+  let addUpdate: (String) -> Void
+  let removeUpdate: (String) -> Void
   let save: (BoardTask) -> Void
+  @State private var newUpdate = ""
   @Environment(\.dismiss) private var dismiss
 
   // The current project stays selectable even if it has been archived since.
@@ -365,6 +400,13 @@ struct EditTaskView: View {
     var names = projects.map(\.name)
     if let current = task.project, !names.contains(current) { names.append(current) }
     return names
+  }
+
+  private func submitUpdate() {
+    let text = newUpdate
+    guard !text.isBlank else { return }
+    addUpdate(text)
+    newUpdate = ""
   }
 
   var body: some View {
@@ -388,6 +430,38 @@ struct EditTaskView: View {
                 .buttonStyle(.plain).help("Remove this link")
             }
           }
+        }
+      }
+      Section("Updates") {
+        HStack {
+          TextField("Add an update — Enter", text: $newUpdate).onSubmit(submitUpdate)
+          Button("Add", action: submitUpdate).disabled(newUpdate.isBlank)
+        }
+        if updates.isEmpty {
+          Text("News about this task from email, Slack, documents and you will collect here.")
+            .font(.caption).foregroundStyle(.secondary)
+        } else {
+          ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+              ForEach(updates.reversed()) { update in
+                VStack(alignment: .leading, spacing: 2) {
+                  HStack(spacing: 6) {
+                    Image(systemName: CardView.icon(for: update.source)).font(.caption2).foregroundStyle(.secondary)
+                    Text(update.date, format: .dateTime.day().month().hour().minute()).font(.caption).foregroundStyle(.secondary)
+                    if let link = update.link.flatMap(URL.init(string:)) {
+                      Link(destination: link) { Label("source", systemImage: "arrow.up.right.square") }.font(.caption)
+                    }
+                    Spacer()
+                    Button { removeUpdate(update.id) } label: { Image(systemName: "xmark.circle") }
+                      .buttonStyle(.plain).foregroundStyle(.tertiary).help("Remove this update")
+                  }
+                  Text(update.text).font(.callout).textSelection(.enabled)
+                }
+              }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+          }
+          .frame(maxHeight: 220)
         }
       }
       TextField(
