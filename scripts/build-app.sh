@@ -34,5 +34,14 @@ cat > "$APP/Contents/Info.plist" <<PL
 </plist>
 PL
 
-codesign --force --deep --sign - "$APP"
+# A stable identity (scripts/make-signing-identity.sh) keeps macOS permissions across rebuilds; without one the
+# app is signed ad hoc, and macOS asks for them again after every reinstall.
+IDENTITY="${TASKBOARD_SIGN_IDENTITY:-Taskboard Local}"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "\"$IDENTITY\""; then
+  codesign --force --deep --sign "$IDENTITY" "$APP"
+  echo "Signed with \"$IDENTITY\""
+else
+  codesign --force --deep --sign - "$APP"
+  echo "Signed ad hoc — macOS will ask for folder and microphone access again after each reinstall (see scripts/make-signing-identity.sh)"
+fi
 echo "Built $APP"

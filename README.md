@@ -145,6 +145,13 @@ noted in the project journal.
 
 On the first recording macOS asks for microphone and speech-recognition access. Launch at login is in the menu.
 
+**Permission prompts after every reinstall** (Downloads, Desktop, Music, microphone…): the app is signed ad hoc,
+and an ad hoc signature changes with every build, so macOS forgets what was allowed. Run
+`./scripts/make-signing-identity.sh` once (it creates a self-signed certificate "Taskboard Local" in your login
+keychain and asks you to authorize trusting it for code signing); from then on `install.sh` signs with it, the
+app keeps one identity, and the prompts come once. The checks also start their `claude` and `gh` processes from the
+data folder, not from `/`.
+
 ## Claude
 
 The `taskboard-mcp` MCP server lives in the bundle and is connected only to the wingform profile, together

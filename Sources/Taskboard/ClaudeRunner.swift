@@ -1,6 +1,7 @@
 // Hands a voice note to Claude Code in the wingform profile (`claude -p`), which changes the board
 // through taskboard-mcp. Only the taskboard tools are available to it.
 import Foundation
+import TaskboardCore
 
 enum ClaudeError: LocalizedError {
   case notFound
@@ -26,8 +27,10 @@ enum ClaudeRunner {
     UserDefaults.standard.string(forKey: "claudeConfigDir") ?? "\(home)/.claude-wingform"
   }
 
+  // The tools are off, so Claude needs no project; a folder of our own keeps it away from the home folder and
+  // `/` (a process started by the app inherits `/`), whose neighbours macOS guards (Downloads, Desktop, Music…).
   static var workingDirectory: String {
-    UserDefaults.standard.string(forKey: "claudeWorkingDir") ?? "\(home)/GitHub/wingform"
+    UserDefaults.standard.string(forKey: "claudeWorkingDir") ?? BoardStore.directory.path
   }
 
   static var model: String { UserDefaults.standard.string(forKey: "claudeModel") ?? "sonnet" }

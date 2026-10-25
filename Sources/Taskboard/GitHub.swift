@@ -80,6 +80,7 @@ enum GitHubClient {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
+        process.currentDirectoryURL = BoardStore.directory  // not `/`: see ClaudeRunner.workingDirectory
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = ["/opt/homebrew/bin", "/usr/local/bin", environment["PATH"] ?? "/usr/bin:/bin"].joined(separator: ":")
         environment["GH_PROMPT_DISABLED"] = "1"
