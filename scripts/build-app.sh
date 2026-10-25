@@ -14,6 +14,15 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/Taskboard" "$BIN/taskboard-mcp" "$APP/Contents/MacOS/"
 
+# The icon is drawn by scripts/make-icon.swift; Resources/AppIcon.icns is its committed output.
+if [ ! -f Resources/AppIcon.icns ]; then
+  ICONSET=$(mktemp -d)/AppIcon.iconset
+  swift scripts/make-icon.swift "$ICONSET" && mkdir -p Resources && iconutil -c icns "$ICONSET" -o Resources/AppIcon.icns
+fi
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+
+# No LSUIElement: Taskboard is a regular app (Dock icon, Cmd-Tab). "Show in Dock" in its menu switches it to a
+# menu-bar-only app at run time (see main.swift).
 cat > "$APP/Contents/Info.plist" <<PL
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -27,7 +36,9 @@ cat > "$APP/Contents/Info.plist" <<PL
   <key>CFBundleVersion</key><string>$VERSION</string>
   <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>LSMinimumSystemVersion</key><string>26.0</string>
-  <key>LSUIElement</key><true/>
+  <key>CFBundleDisplayName</key><string>Taskboard</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>Taskboard records a voice note when you press the dictation hotkey.</string>
   <key>NSSpeechRecognitionUsageDescription</key><string>Taskboard transcribes your voice notes on this Mac.</string>
 </dict>

@@ -32,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       self?.updateIcon()
     }
     updateWidgetVisibility()
+    NSApp.mainMenu = buildMainMenu()
+    if Self.opensBoardAtLaunch { showBoard() }
 
     hotKeys = [
       HotKey(keyCode: kVK_ANSI_R, modifiers: shortcut, id: 1) { [weak self] in self?.toggleRecording() },
@@ -59,6 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     menu.addItem(item(SyncKind.github.menuTitle, #selector(syncGitHubAction)))
     menu.addItem(item("Show widget", #selector(toggleWidget), key: "w"))
     menu.addItem(.separator())
+    menu.addItem(item("Show in Dock", #selector(toggleDock)))
+    menu.addItem(item("Open board at launch", #selector(toggleOpenBoardAtLaunch)))
     menu.addItem(item("Launch at login", #selector(toggleLoginItem)))
     menu.addItem(item("Data folder", #selector(openDataFolder)))
     menu.addItem(.separator())
@@ -112,6 +116,95 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     } else {
       widget.orderOut(nil)
     }
+  }
+
+  // MARK: - Dock
+
+  static var showsInDock: Bool { UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? true }
+  static var opensBoardAtLaunch: Bool { UserDefaults.standard.object(forKey: "openBoardAtLaunch") as? Bool ?? true }
+
+  @objc private func toggleDock() {
+    let show = !Self.showsInDock
+    UserDefaults.standard.set(show, forKey: "showInDock")
+    NSApp.setActivationPolicy(show ? .regular : .accessory)
+    // Switching policy deactivates the app; bring the board back if it is open so nothing seems to vanish.
+    if boardWindow?.isVisible == true { NSApp.activate() }
+  }
+
+  @objc private func toggleOpenBoardAtLaunch() {
+    UserDefaults.standard.set(!Self.opensBoardAtLaunch, forKey: "openBoardAtLaunch")
+  }
+
+  // Closing the board window leaves the app (widget, menu bar, hotkeys) running; the Dock icon brings it back.
+  func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    if !flag { showBoard() }
+    return true
+  }
+
+  // MARK: - Main menu (a regular app has one: Cmd+C/V/Z in text fields, Cmd+W, Cmd+Q and Window all live here)
+
+  private func buildMainMenu() -> NSMenu {
+    let main = NSMenu()
+    func add(_ menu: NSMenu, title: String) {
+      let holder = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+      holder.submenu = menu
+      main.addItem(holder)
+    }
+    func standard(_ title: String, _ action: Selector, _ key: String, _ mask: NSEvent.ModifierFlags = .command) -> NSMenuItem {
+      let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+      item.keyEquivalentModifierMask = mask
+      return item
+    }
+
+    let app = NSMenu(title: "Taskboard")
+    let about = NSMenuItem(title: "About Taskboard", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+    app.addItem(about)
+    app.addItem(.separator())
+    app.addItem(item("Show in Dock", #selector(toggleDock)))
+    app.addItem(item("Open board at launch", #selector(toggleOpenBoardAtLaunch)))
+    app.addItem(item("Launch at login", #selector(toggleLoginItem)))
+    app.addItem(.separator())
+    app.addItem(standard("Hide Taskboard", #selector(NSApplication.hide(_:)), "h"))
+    app.addItem(standard("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]))
+    app.addItem(NSMenuItem(title: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: ""))
+    app.addItem(.separator())
+    app.addItem(standard("Quit Taskboard", #selector(NSApplication.terminate(_:)), "q"))
+    add(app, title: "Taskboard")
+
+    let actions = NSMenu(title: "Actions")
+    actions.addItem(item("Open board", #selector(showBoardAction), key: "k"))
+    actions.addItem(item("Dictate a task", #selector(toggleRecordingAction), key: "r"))
+    actions.addItem(.separator())
+    for (kind, selector) in [
+      (SyncKind.email, #selector(syncEmailAction)), (SyncKind.slack, #selector(syncSlackAction)),
+      (SyncKind.github, #selector(syncGitHubAction)),
+    ] { actions.addItem(item(kind.menuTitle, selector)) }
+    actions.addItem(.separator())
+    actions.addItem(item("Show widget", #selector(toggleWidget), key: "w"))
+    actions.addItem(item("Data folder", #selector(openDataFolder)))
+    add(actions, title: "Actions")
+
+    let edit = NSMenu(title: "Edit")
+    edit.addItem(standard("Undo", Selector(("undo:")), "z"))
+    edit.addItem(standard("Redo", Selector(("redo:")), "z", [.command, .shift]))
+    edit.addItem(.separator())
+    edit.addItem(standard("Cut", #selector(NSText.cut(_:)), "x"))
+    edit.addItem(standard("Copy", #selector(NSText.copy(_:)), "c"))
+    edit.addItem(standard("Paste", #selector(NSText.paste(_:)), "v"))
+    edit.addItem(standard("Select All", #selector(NSText.selectAll(_:)), "a"))
+    add(edit, title: "Edit")
+
+    let window = NSMenu(title: "Window")
+    window.addItem(standard("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"))
+    window.addItem(NSMenuItem(title: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: ""))
+    window.addItem(standard("Close", #selector(NSWindow.performClose(_:)), "w"))
+    window.addItem(.separator())
+    window.addItem(NSMenuItem(title: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: ""))
+    add(window, title: "Window")
+    NSApp.windowsMenu = window
+    return main
   }
 
   @objc private func toggleLoginItem() {
@@ -226,12 +319,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 }
 
+extension AppDelegate: NSMenuItemValidation {
+  func validateMenuItem(_ item: NSMenuItem) -> Bool {
+    switch item.action {
+    case #selector(toggleWidget): item.state = widgetHidden ? .off : .on
+    case #selector(toggleLoginItem): item.state = SMAppService.mainApp.status == .enabled ? .on : .off
+    case #selector(toggleDock): item.state = Self.showsInDock ? .on : .off
+    case #selector(toggleOpenBoardAtLaunch): item.state = Self.opensBoardAtLaunch ? .on : .off
+    case #selector(toggleRecordingAction): item.title = recorder.isRecording ? "Stop recording" : "Dictate a task"
+    default: break
+    }
+    return true
+  }
+}
+
 extension AppDelegate: NSMenuDelegate {
   func menuNeedsUpdate(_ menu: NSMenu) {
     for item in menu.items {
       switch item.action {
       case #selector(toggleWidget): item.state = widgetHidden ? .off : .on
       case #selector(toggleLoginItem): item.state = SMAppService.mainApp.status == .enabled ? .on : .off
+      case #selector(toggleDock): item.state = Self.showsInDock ? .on : .off
+      case #selector(toggleOpenBoardAtLaunch): item.state = Self.opensBoardAtLaunch ? .on : .off
       case #selector(toggleRecordingAction): item.title = recorder.isRecording ? "Stop recording" : "Dictate a task"
       default: break
       }

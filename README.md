@@ -14,6 +14,12 @@ Note → on-Mac transcription (Speech) → `claude -p` with `CLAUDE_CONFIG_DIR=~
 has the `taskboard` tools → tasks on the board. If Claude is unavailable or changed nothing, the note still
 lands on the board as a task, as is.
 
+Taskboard is a regular macOS app: a Dock icon, Cmd-Tab, a menu bar (Taskboard, Actions, Edit, Window) and the board
+window, which opens at launch and again on a click on the Dock icon; closing the window leaves the widget, the menu bar
+item and the hotkeys running. The widget stays as it was. In the menu bar item or the app menu:
+- **Show in Dock** — off turns it into a menu-bar-only app (no Dock icon, not in Cmd-Tab) right away;
+- **Open board at launch** — off starts it quietly with just the widget (say, after launch at login).
+
 A hidden widget shows itself during recording and processing, then hides again.
 Widget: "Doing", then "To do", up to 10 rows; the circle marks a task done, the header opens the board.
 It is hidden from screen recording and sharing (`defaults write com.lozhka13.taskboard widgetCapturable -bool true` shows it).
