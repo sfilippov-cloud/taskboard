@@ -92,23 +92,18 @@ struct BoardView: View {
 
   private var toolbar: some View {
     VStack(spacing: 8) {
+      ProjectTabs(
+        board: model.board, filter: $filter, add: { projectForm = .new },
+        drop: { ids, name in moveTasks(ids, to: name) })
       HStack {
-        Picker("Project", selection: $filter) {
-          Text("All projects").tag(ProjectFilter.all)
-          Text("No project").tag(ProjectFilter.none)
-          if !model.board.activeProjects.isEmpty { Divider() }
-          ForEach(model.board.activeProjects) { Text($0.name).tag(ProjectFilter.project($0.slug)) }
-        }
-        .labelsHidden().frame(width: 200)
-        Button { projectForm = .new } label: { Image(systemName: "plus") }.help("New project")
-        if let selected {
-          Button { projectForm = .edit(selected) } label: { Image(systemName: "slider.horizontal.3") }
-            .help("Project settings")
-        }
         Picker("", selection: $tab) {
           ForEach(BoardTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
         }
         .pickerStyle(.segmented).labelsHidden().frame(width: 260)
+        if let selected {
+          Button { projectForm = .edit(selected) } label: { Image(systemName: "slider.horizontal.3") }
+            .help("Project settings")
+        }
         Spacer()
         Button { showNote = true } label: { Label("Note", systemImage: "square.and.pencil") }
           .help("Paste a note or meeting minutes — Claude will sort it out")
@@ -126,6 +121,17 @@ struct BoardView: View {
       }
     }
     .padding(12)
+  }
+
+  // A card dropped on a project tab: the task and its subtasks move there (nil — "No project").
+  private func moveTasks(_ ids: [Int], to name: String?) -> Bool {
+    guard !ids.isEmpty else { return false }
+    model.change(source: "manual") { board in
+      var count = 0
+      for id in ids { count += try board.setProject(id, name).count }
+      model.show("Moved \(count) task\(count == 1 ? "" : "s") to \(name ?? "No project")")
+    }
+    return true
   }
 
   private var newTaskPlaceholder: String {
@@ -330,5 +336,69 @@ extension Priority {
     case .normal: "Normal"
     case .high: "High"
     }
+  }
+}
+
+// The project strip: All, one tab per active project, No project. Task cards can be dropped on a tab.
+struct ProjectTabs: View {
+  let board: Board
+  @Binding var filter: ProjectFilter
+  let add: () -> Void
+  let drop: ([Int], String?) -> Bool
+
+  var body: some View {
+    HStack(spacing: 6) {
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 6) {
+          ProjectTab(title: "All", count: open { _ in true }, isSelected: filter == .all) { filter = .all }
+          ForEach(board.activeProjects) { project in
+            ProjectTab(
+              title: project.name, count: open { $0.project == project.name },
+              isSelected: filter == .project(project.slug), select: { filter = .project(project.slug) },
+              drop: { drop($0, project.name) })
+          }
+          ProjectTab(
+            title: "No project", count: open { $0.project == nil }, isSelected: filter == .none,
+            select: { filter = .none }, drop: { drop($0, nil) })
+        }
+        .padding(.vertical, 2)
+      }
+      Button(action: add) { Image(systemName: "plus") }.help("New project")
+    }
+  }
+
+  private func open(_ matches: (BoardTask) -> Bool) -> Int {
+    board.tasks.filter { $0.column != .done && matches($0) }.count
+  }
+}
+
+struct ProjectTab: View {
+  let title: String
+  let count: Int
+  let isSelected: Bool
+  let select: () -> Void
+  var drop: (([Int]) -> Bool)?
+  @State private var targeted = false
+
+  var body: some View {
+    Button(action: select) {
+      HStack(spacing: 5) {
+        Text(title).fontWeight(isSelected ? .semibold : .regular).lineLimit(1)
+        if count > 0 { Text("\(count)").font(.caption2).foregroundStyle(.secondary) }
+      }
+      .padding(.horizontal, 10).padding(.vertical, 4)
+      .background(Capsule().fill(fill))
+      .overlay(Capsule().stroke(targeted ? Color.accentColor : .clear, lineWidth: 2))
+      .contentShape(Capsule())
+    }
+    .buttonStyle(.plain)
+    .dropDestination(for: String.self) { ids, _ in drop?(ids.compactMap(Int.init)) ?? false } isTargeted: {
+      targeted = drop != nil && $0
+    }
+  }
+
+  private var fill: Color {
+    if targeted { return Color.accentColor.opacity(0.3) }
+    return isSelected ? Color.accentColor.opacity(0.2) : Color.primary.opacity(0.06)
   }
 }

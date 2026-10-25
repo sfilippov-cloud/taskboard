@@ -88,6 +88,23 @@ extension Board {
     return project
   }
 
+  // Moves a task and all its subtasks to a project (nil — no project).
+  @discardableResult
+  public mutating func setProject(_ id: Int, _ name: String?) throws -> [BoardTask] {
+    guard task(id) != nil else { throw BoardError.noTask(id) }
+    let target = try resolveProject(name)
+    var ids = [id]
+    var queue = [id]
+    while let next = queue.popLast() {
+      for child in tasks where child.parent == next {
+        ids.append(child.id)
+        queue.append(child.id)
+      }
+    }
+    for taskID in ids { _ = try update(taskID) { $0.project = target } }
+    return ids.compactMap { task($0) }
+  }
+
   // Переименование меняет имя и у задач проекта; папка (slug) остаётся.
   @discardableResult
   public mutating func updateProject(
@@ -125,6 +142,14 @@ extension Board {
     for task in tasks {
       if let previous = old[task.id] {
         if previous.column != task.column { result.append((task.project, "#\(task.id) \(task.title) → \(task.column.title)")) }
+        // A project change, but not a rename (same project under a new name) — noted in both journals.
+        let from = previous.project.flatMap { before.project(matching: $0) }
+        let to = task.project.flatMap { project(matching: $0) }
+        if from?.slug != to?.slug {
+          let text = "#\(task.id) \(task.title): moved from “\(from?.name ?? "No project")” to “\(to?.name ?? "No project")”"
+          result.append((task.project, text))
+          if let old = previous.project, to != nil || from != nil { result.append((old, text)) }
+        }
       } else {
         result.append((task.project, "+ #\(task.id) \(task.title)"))
       }

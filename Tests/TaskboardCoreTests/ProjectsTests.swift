@@ -147,3 +147,48 @@ import Testing
     }
   }
 }
+
+@Suite struct MovingBetweenProjectsTests {
+  @Test func movesTaskWithItsSubtasks() throws {
+    var board = Board()
+    try board.addProject(name: "A")
+    try board.addProject(name: "B")
+    let root = board.add(title: "Root", project: "A", source: "manual")
+    let child = board.add(title: "Child", project: "A", source: "manual")
+    let other = board.add(title: "Other", project: "A", source: "manual")
+    try board.setParent(child.id, root.id)
+
+    let moved = try board.setProject(root.id, "b")
+    #expect(Set(moved.map(\.id)) == [root.id, child.id])
+    #expect(board.task(root.id)?.project == "B")
+    #expect(board.task(child.id)?.project == "B")
+    #expect(board.task(other.id)?.project == "A")
+
+    try board.setProject(root.id, nil)
+    #expect(board.task(child.id)?.project == nil)
+    #expect(throws: BoardError.self) { try board.setProject(root.id, "Nope") }
+    #expect(throws: BoardError.self) { try board.setProject(99, "A") }
+  }
+
+  @Test func moveIsJournaledInBothProjectsButRenameIsNot() throws {
+    var board = Board()
+    try board.addProject(name: "A")
+    try board.addProject(name: "B")
+    let task = board.add(title: "T", project: "A", source: "manual")
+    var before = board
+    try board.setProject(task.id, "B")
+    let moved = board.changes(since: before)
+    #expect(moved.map(\.project) == ["B", "A"])
+    #expect(moved[0].text == "#1 T: moved from “A” to “B”")
+
+    before = board
+    try board.setProject(task.id, nil)
+    #expect(board.changes(since: before).map(\.project) == [nil, "B"])
+
+    before = board
+    try board.setProject(task.id, "A")
+    before = board
+    try board.updateProject("a", name: "Alpha")
+    #expect(board.changes(since: before).isEmpty)
+  }
+}

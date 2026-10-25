@@ -29,8 +29,10 @@ language and answers in English.
 
 ## Projects, journal, documents
 
-Tasks are grouped by project. In the board window: the project picker on top (`+` — new, sliders — settings)
-and the tabs **Board / Journal / Documents**.
+Tasks are grouped by project. In the board window: a strip of project tabs on top (All, one per project,
+No project — each with its open-task count; `+` — new project) and the tabs **Board / Journal / Documents**
+below it (sliders — project settings). **Drag a task card onto a project tab** to move it there (with its
+subtasks); drop it on "No project" to clear the project. A move is noted in the journals of both projects.
 
 - **Journal** — a Markdown file per project (`projects/<slug>/log.md`); the general one is `log.md` in the
   data folder. Task changes (new, moved between columns, deleted) are written automatically wherever they
