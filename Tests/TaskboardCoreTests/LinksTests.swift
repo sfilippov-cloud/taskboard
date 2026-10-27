@@ -205,3 +205,20 @@ import Testing
     #expect(MailRef.messageURL(forMessageID: "  <> ") == nil)
   }
 }
+
+@Suite struct MailReferenceMigrationTests {
+  @Test func oldEmailChipsGetTheirSubjectAsAReference() throws {
+    var board = Board()
+    let task = board.add(title: "T", source: "email")
+    try board.attach(TaskLink(kind: "email", title: "Re: Pricing", url: "https://mail.google.com/x/1"), to: task.id)
+    try board.attach(TaskLink(kind: "email", title: "Email", url: "https://mail.google.com/x/2"), to: task.id)  // no subject known
+    try board.attach(TaskLink(kind: "slack", title: "#jssi", url: "https://a.slack.com/p1"), to: task.id)
+    board.adoptMailReferences()
+    let links = board.task(task.id)!.links
+    #expect(links[0].mail == MailRef(subject: "Re: Pricing"))
+    #expect(links[1].mail == nil && links[2].mail == nil)
+    var again = board
+    again.adoptMailReferences()
+    #expect(again == board)
+  }
+}

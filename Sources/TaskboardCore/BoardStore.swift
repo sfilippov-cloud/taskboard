@@ -27,6 +27,7 @@ public enum BoardStore {
     else { return Board() }
     board.adoptLegacyProjects()
     board.adoptLegacySourceLinks()
+    board.adoptMailReferences()
     return board
   }
 

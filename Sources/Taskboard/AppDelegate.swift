@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       self?.updateIcon()
     }
     model.onBoardChange = { [weak self] in self?.updateBadges() }
+    MailOpener.onProblem = { [weak self] text in self?.model.show(text, isError: true) }
     updateBadges()
     updateWidgetVisibility()
     NSApp.mainMenu = buildMainMenu()

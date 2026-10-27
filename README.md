@@ -174,7 +174,11 @@ spliced into its text. If Mail can't be asked or doesn't have the message (the G
 permission, not found in 25 seconds), the Gmail web link opens instead; a right-click on the link always offers
 "Open in Gmail (web)". The first click makes macOS ask whether Taskboard may control Mail: Allow. Switch it off with
 **Open emails in Mail** in the menu (`defaults write com.lozhka13.taskboard openEmailInMail -bool false`). Emails
-linked before this existed are found by their subject alone, which is slower and may pick a similar message.
+linked before this existed are found by their subject alone (the chip's title), which is slower and may pick a similar
+message. When Mail can't be used, the web link opens **and the app says why** in the widget's message line (macOS
+hasn't allowed Taskboard to control Mail / the email isn't in Mail / no accounts in Mail / Mail took too long); every
+lookup is also noted in `mail-open.log` in the data folder (outcome, and whether sender and date were known — never what
+the email says).
 
 **Adding a link yourself**, three ways:
 - in the task window (double-click the card): paste the address into "Paste a link", optionally give it a title, Enter;

@@ -118,6 +118,17 @@ extension Board {
     tasks[index].updates.removeAll { $0.id == updateID }
   }
 
+  // Email chips saved before links knew how to find a message in Mail: the chip is titled with the subject, so that is
+  // the reference (searching by subject alone — the sender and date weren't kept). Deterministic, like the others.
+  mutating func adoptMailReferences() {
+    for t in tasks.indices {
+      for l in tasks[t].links.indices where tasks[t].links[l].kind == "email" && tasks[t].links[l].mail == nil {
+        let title = tasks[t].links[l].title
+        if title != "Email" { tasks[t].links[l].mail = MailRef(subject: title) }
+      }
+    }
+  }
+
   // Older tasks kept their source as text in the notes ("From email: subject" and the URL on the next line):
   // it becomes a link too, dated by the task, so the result doesn't change from load to load.
   mutating func adoptLegacySourceLinks() {
