@@ -26,6 +26,7 @@ public enum BoardStore {
       var board = try? decoder.decode(Board.self, from: data)
     else { return Board() }
     board.adoptLegacyProjects()
+    board.adoptLegacySourceLinks()
     return board
   }
 

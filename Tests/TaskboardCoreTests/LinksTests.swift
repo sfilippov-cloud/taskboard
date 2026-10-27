@@ -114,3 +114,41 @@ import Testing
     }
   }
 }
+
+@Suite struct SourceLinkTests {
+  @Test func aSourceIsAnEmailOrSlackLinkNamedBySubject() throws {
+    let email = try #require(TaskLink.source(kind: "email", title: "Re: Contract", url: "https://mail.google.com/mail/u/0/#all/18f3a"))
+    #expect(email.kind == "email" && email.title == "Re: Contract")
+    #expect(TaskLink.source(kind: "email", title: nil, url: "https://mail.google.com/x")?.title == "Email")
+    #expect(TaskLink.source(kind: "slack", title: "#jssi: term sheet", url: "https://a.slack.com/archives/C1/p1")?.kind == "slack")
+    #expect(TaskLink.source(kind: "github", title: "PR", url: "https://github.com/o/r/pull/5")?.kind == "pr")
+    #expect(TaskLink.source(kind: "email", title: "x", url: "javascript:alert(1)") == nil)
+  }
+
+  @Test func aNewTaskFromAProposalShowsItsSourceInTheJournal() throws {
+    var board = Board()
+    let before = board
+    let proposal = try board.proposeTask(
+      ProposalDraft(title: "Reply to Mark", reason: "asked", sourceKind: "email", sourceTitle: "Re: Pricing", sourceLink: "https://x.y/1"))
+    try board.acceptProposal(proposal.id)
+    #expect(board.changes(since: before).map(\.text).contains("+ #1 Reply to Mark\nhttps://x.y/1"))
+  }
+
+  @Test func oldNotesLinksBecomeChipsOnce() throws {
+    var board = Board()
+    let task = board.add(
+      title: "Old", notes: "Context line\n\nFrom email: Re: Contract\nhttps://mail.google.com/mail/u/0/#all/18f3a", source: "email")
+    board.adoptLegacySourceLinks()
+    let migrated = board.task(task.id)!
+    #expect(migrated.links.count == 1 && migrated.links[0].kind == "email" && migrated.links[0].title == "Re: Contract")
+    #expect(migrated.links[0].added == migrated.created)
+    #expect(migrated.notes == "Context line\n\nFrom email: Re: Contract")
+    var again = board
+    again.adoptLegacySourceLinks()
+    #expect(again == board)  // running it twice changes nothing
+    // Notes that merely start like a source line, without a URL after them, are left alone.
+    let plain = board.add(title: "Plain", notes: "From email: nothing follows", source: "manual")
+    board.adoptLegacySourceLinks()
+    #expect(board.task(plain.id)!.links.isEmpty && board.task(plain.id)!.notes == "From email: nothing follows")
+  }
+}

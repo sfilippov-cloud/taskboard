@@ -146,11 +146,17 @@ extension Board {
       var notes = proposal.notes ?? ""
       if let subject = proposal.sourceTitle ?? proposal.sourceRef {
         notes += (notes.isEmpty ? "" : "\n\n") + "From \(proposal.sourceKind): \(subject)"
-        if let link = proposal.sourceLink { notes += "\n\(link)" }
       }
-      return add(
+      let task = add(
         title: proposal.title, notes: notes, project: proposal.project, owner: proposal.owner, priority: proposal.priority,
         source: proposal.sourceKind)
+      // The source (the email, the Slack message) is a link on the task, one click from the card.
+      if let url = proposal.sourceLink,
+        let link = TaskLink.source(kind: proposal.sourceKind, title: proposal.sourceTitle ?? proposal.sourceRef, url: url)
+      {
+        try? attach(link, to: task.id)
+      }
+      return self.task(task.id)
     case .moveTask:
       guard let taskID = proposal.taskID, let column = proposal.column, task(taskID) != nil else { return nil }
       return try update(taskID) { $0.column = column }

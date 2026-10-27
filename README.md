@@ -157,6 +157,13 @@ A task can carry links — pull requests, Claude artifacts, commits, documents, 
 the card (click opens them); the task window lists them with a remove button. Every link added or changing state is
 noted in the project journal.
 
+**The source of a task or an update is one click away.** A task created from an accepted proposal gets its source as a
+chip — an envelope with the email's subject, a "#" with the Slack message — and the journal line "+ #12 …" carries
+the same address. The "latest update" line on a card has an arrow that opens the email or message that update came
+from (every update in the task window has a "source" link too). Tasks accepted before this existed had their source as
+text in the notes ("From email: …" and the address on the next line); those turn into chips when the board loads, and
+the address is removed from the notes. Claude can attach such links itself (`attach_link` with kind `email` or `slack`).
+
 **Adding a link yourself**, three ways:
 - in the task window (double-click the card): paste the address into "Paste a link", optionally give it a title, Enter;
 - right-click a card: **Add link…** (the clipboard's link is prefilled), or **Paste link: …** when the clipboard

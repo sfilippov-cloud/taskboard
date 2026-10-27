@@ -248,7 +248,7 @@ let tools: [[String: Any]] = [
       [
         "id": idProperty, "url": ["type": "string", "description": "http(s) URL"],
         "title": ["type": "string", "description": "Short name shown on the task"],
-        "kind": ["type": "string", "enum": ["artifact", "pr", "commit", "link"], "description": "Default: artifact"],
+        "kind": ["type": "string", "enum": ["artifact", "pr", "commit", "email", "slack", "link"], "description": "Default: artifact"],
         "repo": ["type": "string", "description": "owner/name, for a pull request"],
         "number": ["type": "integer", "description": "Pull request number"],
       ], required: ["id", "url", "title"]),
@@ -470,7 +470,9 @@ func callTool(_ name: String, _ arguments: [String: Any]) throws -> String {
     else { throw ToolError("A url is required") }
     guard let title = (arguments["title"] as? String).nonEmpty else { throw ToolError("A title is required") }
     let kind = (arguments["kind"] as? String).nonEmpty ?? "artifact"
-    guard ["artifact", "pr", "commit", "link"].contains(kind) else { throw ToolError("kind: artifact, pr, commit or link") }
+    guard ["artifact", "pr", "commit", "email", "slack", "link"].contains(kind) else {
+      throw ToolError("kind: artifact, pr, commit, email, slack or link")
+    }
     let link = TaskLink(
       kind: kind, title: title, url: url, repo: arguments["repo"] as? String, number: number(arguments["number"]))
     return try BoardStore.change(source: source) { board in

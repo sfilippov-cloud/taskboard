@@ -64,6 +64,32 @@ extension Board {
     tasks[index].updates.removeAll { $0.id == updateID }
   }
 
+  // Older tasks kept their source as text in the notes ("From email: subject" and the URL on the next line):
+  // it becomes a link too, dated by the task, so the result doesn't change from load to load.
+  mutating func adoptLegacySourceLinks() {
+    for index in tasks.indices {
+      guard let notes = tasks[index].notes else { continue }
+      let lines = notes.components(separatedBy: "\n")
+      for (position, line) in lines.enumerated() {
+        guard line.hasPrefix("From "), let colon = line.firstIndex(of: ":"), position + 1 < lines.count else { continue }
+        let kind = String(line[line.index(line.startIndex, offsetBy: 5)..<colon])
+        guard ["email", "slack", "github"].contains(kind) else { continue }
+        let subject = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+        guard let link = TaskLink.source(kind: kind, title: subject, url: lines[position + 1]) else { continue }
+        if !tasks[index].links.contains(where: { $0.identity == link.identity }) {
+          var adopted = link
+          adopted.added = tasks[index].created
+          tasks[index].links.append(adopted)
+        }
+        // The URL line is now a chip; the notes keep only the "From …" line.
+        tasks[index].notes = Optional(
+          lines.enumerated().filter { $0.offset != position + 1 }.map(\.element).joined(separator: "\n")
+        ).nonEmpty
+        break  // one source per task; `lines` is stale after the edit
+      }
+    }
+  }
+
   // Journal lines for links that appeared or changed state since `before`.
   func linkChanges(since before: Board) -> [(project: String?, text: String)] {
     var result: [(String?, String)] = []
@@ -92,6 +118,15 @@ extension Board {
 }
 
 extension TaskLink {
+  // Where a task or an update came from: an email thread or a Slack message ("email", "slack"), anything else a plain link.
+  public static func source(kind: String, title: String?, url: String) -> TaskLink? {
+    guard let link = detect(url: url, title: title.nonEmpty ?? (kind == "email" ? "Email" : kind == "slack" ? "Slack message" : nil)) else {
+      return nil
+    }
+    // A pull request or commit keeps what detect made of it; otherwise the source's own kind.
+    return link.kind == "link" && (kind == "email" || kind == "slack") ? TaskLink(kind: kind, title: link.title, url: link.url) : link
+  }
+
   // A link the user typed, pasted or dropped: only http(s). GitHub pull requests and commits and Claude artifacts are
   // recognised (a PR then keeps its repo and number, so the GitHub check can keep its state current); anything else is
   // a plain link, named by its host and last path part unless a title is given.

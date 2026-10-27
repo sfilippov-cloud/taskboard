@@ -20,7 +20,8 @@ import Testing
     let task = try #require(try board.acceptProposal(proposal.id))
     #expect(board.proposals.isEmpty)
     #expect(task.source == "email" && task.project == "JSSI")
-    #expect(task.notes == "From email: Re: Contract\nhttps://x/1")
+    #expect(task.notes == "From email: Re: Contract")
+    #expect(task.links.map(\.kind) == ["email"] && task.links[0].title == "Re: Contract" && task.links[0].url == "https://x/1")
   }
 
   @Test func duplicatesAreRefused() throws {

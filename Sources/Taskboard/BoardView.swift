@@ -358,6 +358,10 @@ struct LatestUpdate: View {
       Image(systemName: CardView.icon(for: update.source)).font(.caption2).foregroundStyle(Color.accentColor)
       Text(update.text).font(.caption).lineLimit(2)
       Spacer(minLength: 0)
+      if let url = update.link.flatMap(URL.init(string:)) {
+        Link(destination: url) { Image(systemName: "arrow.up.right.square") }
+          .buttonStyle(.plain).foregroundStyle(Color.accentColor).help("Open the source: \(update.link ?? "")")
+      }
       VStack(alignment: .trailing, spacing: 1) {
         Text(update.date, format: .relative(presentation: .named)).font(.caption2).foregroundStyle(.tertiary)
         if total > 1 { Text("+\(total - 1) earlier").font(.caption2).foregroundStyle(.tertiary) }
@@ -386,7 +390,7 @@ struct LinkChips: View {
 
   private func chip(_ link: TaskLink) -> some View {
     HStack(spacing: 3) {
-      Image(systemName: icon(link)).font(.caption2)
+      Image(systemName: Self.icon(for: link)).font(.caption2)
       Text(link.chip).font(.caption2).lineLimit(1)
       if let live = link.live, !live.isEmpty {
         Image(systemName: "checkmark.seal.fill").font(.caption2)
@@ -398,11 +402,13 @@ struct LinkChips: View {
     .background(Capsule().fill(color(link).opacity(0.14)))
   }
 
-  private func icon(_ link: TaskLink) -> String {
+  static func icon(for link: TaskLink) -> String {
     switch link.kind {
     case "pr": link.state == "merged" ? "arrow.triangle.merge" : "arrow.triangle.pull"
     case "artifact": "sparkles.rectangle.stack"
     case "commit": "smallcircle.filled.circle"
+    case "email": "envelope"
+    case "slack": "number"
     default: "link"
     }
   }
@@ -484,7 +490,7 @@ struct EditTaskView: View {
         if let linkError { Text(linkError).font(.caption).foregroundStyle(.red) }
         ForEach(links, id: \.url) { link in
           HStack {
-            Image(systemName: link.kind == "pr" ? "arrow.triangle.pull" : link.kind == "artifact" ? "sparkles.rectangle.stack" : link.kind == "commit" ? "smallcircle.filled.circle" : "link")
+            Image(systemName: LinkChips.icon(for: link))
             if let url = URL(string: link.url) {
               Link(link.label, destination: url).lineLimit(1).help(link.url)
             } else {

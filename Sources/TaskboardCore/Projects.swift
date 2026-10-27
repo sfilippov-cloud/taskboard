@@ -184,7 +184,8 @@ extension Board {
           if let old = previous.project, to != nil || from != nil { result.append((old, text)) }
         }
       } else {
-        result.append((task.project, "+ #\(task.id) \(task.title)"))
+        // A task that comes with a source (an accepted proposal) shows it in the journal too.
+        result.append((task.project, "+ #\(task.id) \(task.title)" + (task.links.first.map { "\n" + $0.url } ?? "")))
       }
     }
     for task in before.tasks where !current.contains(task.id) {
