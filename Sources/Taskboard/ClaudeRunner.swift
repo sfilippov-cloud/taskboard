@@ -128,7 +128,10 @@ enum ClaudeRunner {
     3. Skip, without a proposal or a journal entry: newsletters, marketing, receipts, calendar \
     auto-replies, CI and monitoring alerts, social notifications, anything automated or not needing the \
     user's attention. A subject and snippet are enough to decide that.
-    4. For threads that matter:
+    4. For threads that matter. Whenever you call add_task_update or propose_task for an email, also pass \
+    mail_subject (the subject of the message the news comes from), mail_from (its sender as shown, "Name \
+    <address>") and mail_date (that message's own date, ISO 8601): they let the user open that exact email \
+    in the Mail app.
     - add_task_update when the thread brings news about one particular EXISTING task — a deadline moved, \
     an answer, a blocker, a decision, progress. Use the task id from list_tasks, write one or two sentences \
     with the date, pass link = https://mail.google.com/mail/u/0/#all/<threadId>. This is what shows on the \

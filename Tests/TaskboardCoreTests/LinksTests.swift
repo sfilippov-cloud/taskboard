@@ -152,3 +152,56 @@ import Testing
     #expect(board.task(plain.id)!.links.isEmpty && board.task(plain.id)!.notes == "From email: nothing follows")
   }
 }
+
+@Suite struct MailRefTests {
+  @Test func prefixesAreStrippedFromTheSubject() {
+    #expect(MailRef(subject: "Re: Re: Fwd: JSSI pricing").coreSubject == "JSSI pricing")
+    #expect(MailRef(subject: "RE[2]: Contract").coreSubject == "Contract")
+    #expect(MailRef(subject: "Ответ: Договор").coreSubject == "Договор")
+    #expect(MailRef(subject: "Revenue report").coreSubject == "Revenue report")  // "Re" inside a word stays
+    #expect(MailRef(subject: "  Fw:   spaced  ").coreSubject == "spaced")
+  }
+
+  @Test func theSenderAddressIsPulledOut() {
+    #expect(MailRef(subject: "s", from: "Dana Smith <Dana@Acme.com>").fromAddress == "dana@acme.com")
+    #expect(MailRef(subject: "s", from: "dana@acme.com").fromAddress == "dana@acme.com")
+    #expect(MailRef(subject: "s", from: "Dana").fromAddress == nil)
+    #expect(MailRef(subject: "s").fromAddress == nil)
+  }
+
+  @Test func theMailDetailsTravelFromProposalToLinkAndUpdate() throws {
+    var board = Board()
+    let date = Date(timeIntervalSince1970: 1_792_000_000)
+    let mail = MailRef(subject: "Re: Pricing", from: "Dana <dana@acme.com>", date: date)
+    let proposal = try board.proposeTask(
+      ProposalDraft(title: "Reply to Dana", reason: "asked", sourceKind: "email", sourceTitle: "Re: Pricing", sourceLink: "https://x.y/1", mail: mail))
+    let task = try #require(try board.acceptProposal(proposal.id))
+    #expect(task.links.first?.mail == mail)
+    // An update keeps its own reference.
+    try board.addUpdate(task.id, text: "Dana moved the deadline", source: "email", link: "https://x.y/2", mail: mail)
+    #expect(board.task(task.id)!.updates[0].mail == mail)
+    // Without details, an email link still knows its subject: Mail can be searched by that.
+    let bare = try board.proposeTask(
+      ProposalDraft(title: "Other", reason: "r", sourceKind: "email", sourceTitle: "Subject only", sourceLink: "https://x.y/3"))
+    let other = try #require(try board.acceptProposal(bare.id))
+    #expect(other.links.first?.mail == MailRef(subject: "Subject only"))
+    // Slack links carry no mail reference.
+    let slack = TaskLink.source(kind: "slack", title: "#jssi: x", url: "https://a.slack.com/archives/C1/p1", mail: mail)
+    #expect(slack?.mail == nil)
+  }
+
+  @Test func oldTasksAndLinksDecodeWithoutMail() throws {
+    let link = #"{"kind":"email","title":"x","url":"https://x.y","added":"2026-10-01T10:00:00Z"}"#
+    #expect(try BoardStore.decoder.decode(TaskLink.self, from: Data(link.utf8)).mail == nil)
+    let update = #"{"id":"1","date":"2026-10-01T10:00:00Z","source":"email","text":"t"}"#
+    #expect(try BoardStore.decoder.decode(TaskUpdate.self, from: Data(update.utf8)).mail == nil)
+  }
+}
+
+@Suite struct MailURLTests {
+  @Test func messageIDsBecomeMailURLs() {
+    #expect(MailRef.messageURL(forMessageID: "CAF+abc=@mail.gmail.com")?.absoluteString == "message://%3CCAF%2Babc%3D%40mail.gmail.com%3E")
+    #expect(MailRef.messageURL(forMessageID: "<x@y.z>\n")?.absoluteString == "message://%3Cx%40y.z%3E")  // brackets and whitespace dropped
+    #expect(MailRef.messageURL(forMessageID: "  <> ") == nil)
+  }
+}

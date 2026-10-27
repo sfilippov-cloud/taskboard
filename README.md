@@ -164,6 +164,18 @@ from (every update in the task window has a "source" link too). Tasks accepted b
 text in the notes ("From email: …" and the address on the next line); those turn into chips when the board loads, and
 the address is removed from the notes. Claude can attach such links itself (`attach_link` with kind `email` or `slack`).
 
+**Emails open in the Mail app.** Clicking an email chip, an update's arrow or a proposal's subject opens that message in
+Mail instead of the browser. Mail's `message://` links need the message's RFC 822 Message-ID, which the Gmail
+connector returns only inside the full raw message (tens of KB, too big to fetch per email), so Claude passes the
+subject, sender and date it has already read (`mail_subject`, `mail_from`, `mail_date`) and the app finds the message in
+Mail through its scripting — subject, sender, and a day-and-a-half window around the date, in the inbox and "All
+Mail" of every account — reads its Message-ID from Mail and opens it. The values go to the script as arguments, never
+spliced into its text. If Mail can't be asked or doesn't have the message (the Gmail account isn't in Mail, no
+permission, not found in 25 seconds), the Gmail web link opens instead; a right-click on the link always offers
+"Open in Gmail (web)". The first click makes macOS ask whether Taskboard may control Mail: Allow. Switch it off with
+**Open emails in Mail** in the menu (`defaults write com.lozhka13.taskboard openEmailInMail -bool false`). Emails
+linked before this existed are found by their subject alone, which is slower and may pick a similar message.
+
 **Adding a link yourself**, three ways:
 - in the task window (double-click the card): paste the address into "Paste a link", optionally give it a title, Enter;
 - right-click a card: **Add link…** (the clipboard's link is prefilled), or **Paste link: …** when the clipboard

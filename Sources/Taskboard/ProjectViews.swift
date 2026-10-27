@@ -226,7 +226,8 @@ struct ProposalRow: View {
             Link("Open \(link.identity)", destination: url).font(.caption2).lineLimit(1)
           } else if let subject = proposal.sourceTitle {
             if let link = proposal.sourceLink.flatMap(URL.init(string:)) {
-              Link(subject, destination: link).font(.caption2).lineLimit(1)
+              SourceLink(url: link, mail: proposal.mail) { Text(subject).lineLimit(1) }
+                .buttonStyle(.plain).foregroundStyle(Color.accentColor).font(.caption2)
             } else {
               Text(subject).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }

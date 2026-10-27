@@ -348,6 +348,23 @@ struct CardView: View {
   }
 }
 
+// A link to where something came from. An email opens in the Mail app when we know enough to find it there (and the
+// setting allows), falling back to the web link; a right-click always offers the web link. Anything else is a plain Link.
+struct SourceLink<Label: View>: View {
+  let url: URL
+  let mail: MailRef?
+  @ViewBuilder var label: () -> Label
+
+  var body: some View {
+    if let mail, MailOpener.usesMail {
+      Button(action: { MailOpener.open(webURL: url, mail: mail) }, label: label)
+        .contextMenu { Button("Open in Gmail (web)") { NSWorkspace.shared.open(url) } }
+    } else {
+      Link(destination: url, label: label)
+    }
+  }
+}
+
 // The newest piece of news about a task, under its title; the task window has the whole timeline.
 struct LatestUpdate: View {
   let update: TaskUpdate
@@ -359,8 +376,9 @@ struct LatestUpdate: View {
       Text(update.text).font(.caption).lineLimit(2)
       Spacer(minLength: 0)
       if let url = update.link.flatMap(URL.init(string:)) {
-        Link(destination: url) { Image(systemName: "arrow.up.right.square") }
-          .buttonStyle(.plain).foregroundStyle(Color.accentColor).help("Open the source: \(update.link ?? "")")
+        SourceLink(url: url, mail: update.mail) { Image(systemName: "arrow.up.right.square") }
+          .buttonStyle(.plain).foregroundStyle(Color.accentColor)
+          .help(update.mail != nil && MailOpener.usesMail ? "Open the email in Mail" : "Open the source: \(update.link ?? "")")
       }
       VStack(alignment: .trailing, spacing: 1) {
         Text(update.date, format: .relative(presentation: .named)).font(.caption2).foregroundStyle(.tertiary)
@@ -381,7 +399,7 @@ struct LinkChips: View {
     HStack(spacing: 4) {
       ForEach(Array(links.prefix(4)), id: \.url) { link in
         if let url = URL(string: link.url) {
-          Link(destination: url) { chip(link) }.buttonStyle(.plain).help(helpText(link))
+          SourceLink(url: url, mail: link.mail) { chip(link) }.buttonStyle(.plain).help(helpText(link))
         }
       }
       if links.count > 4 { Text("+\(links.count - 4)").font(.caption2).foregroundStyle(.secondary) }
@@ -492,7 +510,8 @@ struct EditTaskView: View {
           HStack {
             Image(systemName: LinkChips.icon(for: link))
             if let url = URL(string: link.url) {
-              Link(link.label, destination: url).lineLimit(1).help(link.url)
+              SourceLink(url: url, mail: link.mail) { Text(link.label).lineLimit(1) }
+                .buttonStyle(.plain).foregroundStyle(Color.accentColor).help(link.url)
             } else {
               Text(link.label).lineLimit(1)
             }
@@ -519,7 +538,8 @@ struct EditTaskView: View {
                     Image(systemName: CardView.icon(for: update.source)).font(.caption2).foregroundStyle(.secondary)
                     Text(update.date, format: .dateTime.day().month().hour().minute()).font(.caption).foregroundStyle(.secondary)
                     if let link = update.link.flatMap(URL.init(string:)) {
-                      Link(destination: link) { Label("source", systemImage: "arrow.up.right.square") }.font(.caption)
+                      SourceLink(url: link, mail: update.mail) { Label("source", systemImage: "arrow.up.right.square") }
+                        .buttonStyle(.plain).foregroundStyle(Color.accentColor).font(.caption)
                     }
                     Spacer()
                     Button { removeUpdate(update.id) } label: { Image(systemName: "xmark.circle") }

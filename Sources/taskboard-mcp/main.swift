@@ -54,6 +54,16 @@ let ownerProperty: [String: Any] = [
   "type": "string",
   "description": "Who is to do it: a name as in the source, \"me\" for the user; omit when unclear. Empty string clears it",
 ]
+// For an email source: what the app needs to find that message in the Mail app (the Gmail connector gives the
+// Message-ID only inside the full raw message, so the subject, sender and date stand in for it).
+let mailProperties: [String: [String: Any]] = [
+  "mail_subject": [
+    "type": "string",
+    "description": "Email source: the subject of the message the news comes from (lets the user open it in the Mail app)",
+  ],
+  "mail_from": ["type": "string", "description": "Email source: that message's sender as shown, \"Name <address>\""],
+  "mail_date": ["type": "string", "description": "Email source: that message's own date, ISO 8601"],
+]
 let parentProperty: [String: Any] = ["type": "integer", "description": "Parent task number; 0 removes the parent"]
 let dependsProperty: [String: Any] = [
   "type": "array", "items": ["type": "integer"],
@@ -217,7 +227,7 @@ let tools: [[String: Any]] = [
         "thread_id": ["type": "string", "description": "Gmail thread id the proposal comes from"],
         "subject": ["type": "string", "description": "Subject of that thread"],
         "link": ["type": "string", "description": "URL of the source; built from thread_id if omitted"],
-      ], required: ["title", "reason"]),
+      ].merging(mailProperties) { a, _ in a }, required: ["title", "reason"]),
   ],
   [
     "name": "propose_status_change",
@@ -238,7 +248,7 @@ let tools: [[String: Any]] = [
       [
         "id": idProperty, "text": ["type": "string", "description": "One or two sentences"],
         "link": ["type": "string", "description": "http(s) URL of the source (an email, a Slack message, a document)"],
-      ], required: ["id", "text"]),
+      ].merging(mailProperties) { a, _ in a }, required: ["id", "text"]),
   ],
   [
     "name": "attach_link",
@@ -251,7 +261,7 @@ let tools: [[String: Any]] = [
         "kind": ["type": "string", "enum": ["artifact", "pr", "commit", "email", "slack", "link"], "description": "Default: artifact"],
         "repo": ["type": "string", "description": "owner/name, for a pull request"],
         "number": ["type": "integer", "description": "Pull request number"],
-      ], required: ["id", "url", "title"]),
+      ].merging(mailProperties) { a, _ in a }, required: ["id", "url", "title"]),
   ],
   [
     "name": "propose_link",
@@ -419,6 +429,13 @@ func gmailLink(_ arguments: [String: Any]) -> String? {
   return (arguments["thread_id"] as? String).nonEmpty.map { "https://mail.google.com/mail/u/0/#all/\($0)" }
 }
 
+func mailRef(_ arguments: [String: Any]) -> MailRef? {
+  guard let subject = (arguments["mail_subject"] as? String).nonEmpty else { return nil }
+  return MailRef(
+    subject: subject, from: (arguments["mail_from"] as? String).nonEmpty,
+    date: (arguments["mail_date"] as? String).flatMap { SyncStore.parseDate($0) })
+}
+
 func draft(_ arguments: [String: Any]) throws -> ProposalDraft {
   guard let reason = (arguments["reason"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty
   else { throw ToolError("A reason is required") }
@@ -427,7 +444,7 @@ func draft(_ arguments: [String: Any]) throws -> ProposalDraft {
     project: arguments["project"] as? String, owner: arguments["owner"] as? String, priority: try priority(arguments) ?? .normal,
     reason: reason,
     sourceKind: source, sourceRef: arguments["thread_id"] as? String, sourceTitle: arguments["subject"] as? String,
-    sourceLink: gmailLink(arguments))
+    sourceLink: gmailLink(arguments), mail: mailRef(arguments))
 }
 
 func callTool(_ name: String, _ arguments: [String: Any]) throws -> String {
@@ -460,7 +477,8 @@ func callTool(_ name: String, _ arguments: [String: Any]) throws -> String {
     let id = try id(arguments)
     guard let text = (arguments["text"] as? String).nonEmpty else { throw ToolError("text is required") }
     return try BoardStore.change(source: source) { board in
-      let added = try board.addUpdate(id, text: text, source: source, link: arguments["link"] as? String)
+      let added = try board.addUpdate(
+        id, text: text, source: source, link: arguments["link"] as? String, mail: mailRef(arguments))
       return (added ? "Added to #\(id) \(board.task(id)!.title)" : "Already on #\(id): the same news is there") + "."
     }
 
@@ -474,7 +492,8 @@ func callTool(_ name: String, _ arguments: [String: Any]) throws -> String {
       throw ToolError("kind: artifact, pr, commit, email, slack or link")
     }
     let link = TaskLink(
-      kind: kind, title: title, url: url, repo: arguments["repo"] as? String, number: number(arguments["number"]))
+      kind: kind, title: title, url: url, repo: arguments["repo"] as? String, number: number(arguments["number"]),
+      mail: kind == "email" ? (mailRef(arguments) ?? MailRef(subject: title)) : nil)
     return try BoardStore.change(source: source) { board in
       let added = try board.attach(link, to: id)
       let task = board.task(id)!

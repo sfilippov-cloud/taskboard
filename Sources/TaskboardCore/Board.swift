@@ -41,11 +41,13 @@ public struct TaskLink: Codable, Equatable, Hashable, Sendable {
   public var state: String?  // pull request: "open", "merged", "closed"
   public var live: [String]?  // environments the pull request is deployed to, e.g. ["test"]
   public var added: Date
+  public var mail: MailRef?  // for an email: enough to find the message in the Mail app
 
   public init(
     kind: String, title: String, url: String, repo: String? = nil, number: Int? = nil, state: String? = nil,
-    live: [String]? = nil, added: Date = Date()
+    live: [String]? = nil, added: Date = Date(), mail: MailRef? = nil
   ) {
+    self.mail = mail
     self.kind = kind
     self.title = title
     self.url = url
@@ -67,8 +69,13 @@ public struct TaskUpdate: Codable, Equatable, Identifiable, Sendable {
   public var source: String  // email, slack, github, document, voice, manual, claude
   public var text: String
   public var link: String?  // where it comes from
+  public var mail: MailRef?  // an email source, findable in the Mail app
 
-  public init(text: String, source: String, link: String? = nil, date: Date = Date(), id: String = UUID().uuidString) {
+  public init(
+    text: String, source: String, link: String? = nil, date: Date = Date(), id: String = UUID().uuidString,
+    mail: MailRef? = nil
+  ) {
+    self.mail = mail
     self.id = id
     self.date = date
     self.source = source

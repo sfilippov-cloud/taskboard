@@ -65,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     menu.addItem(.separator())
     menu.addItem(item("Show in Dock", #selector(toggleDock)))
     menu.addItem(item("Open board at launch", #selector(toggleOpenBoardAtLaunch)))
+    menu.addItem(item("Open emails in Mail", #selector(toggleOpenEmailInMail)))
     menu.addItem(item("Launch at login", #selector(toggleLoginItem)))
     menu.addItem(item("Data folder", #selector(openDataFolder)))
     menu.addItem(.separator())
@@ -143,6 +144,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if boardWindow?.isVisible == true { NSApp.activate() }
   }
 
+  @objc private func toggleOpenEmailInMail() {
+    UserDefaults.standard.set(!MailOpener.usesMail, forKey: "openEmailInMail")
+  }
+
   @objc private func toggleOpenBoardAtLaunch() {
     UserDefaults.standard.set(!Self.opensBoardAtLaunch, forKey: "openBoardAtLaunch")
   }
@@ -176,6 +181,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     app.addItem(.separator())
     app.addItem(item("Show in Dock", #selector(toggleDock)))
     app.addItem(item("Open board at launch", #selector(toggleOpenBoardAtLaunch)))
+    app.addItem(item("Open emails in Mail", #selector(toggleOpenEmailInMail)))
     app.addItem(item("Launch at login", #selector(toggleLoginItem)))
     app.addItem(.separator())
     app.addItem(standard("Hide Taskboard", #selector(NSApplication.hide(_:)), "h"))
@@ -338,6 +344,7 @@ extension AppDelegate: NSMenuItemValidation {
     case #selector(toggleLoginItem): item.state = SMAppService.mainApp.status == .enabled ? .on : .off
     case #selector(toggleDock): item.state = Self.showsInDock ? .on : .off
     case #selector(toggleOpenBoardAtLaunch): item.state = Self.opensBoardAtLaunch ? .on : .off
+    case #selector(toggleOpenEmailInMail): item.state = MailOpener.usesMail ? .on : .off
     case #selector(toggleRecordingAction): item.title = recorder.isRecording ? "Stop recording" : "Dictate a task"
     default: break
     }
@@ -353,6 +360,7 @@ extension AppDelegate: NSMenuDelegate {
       case #selector(toggleLoginItem): item.state = SMAppService.mainApp.status == .enabled ? .on : .off
       case #selector(toggleDock): item.state = Self.showsInDock ? .on : .off
       case #selector(toggleOpenBoardAtLaunch): item.state = Self.opensBoardAtLaunch ? .on : .off
+      case #selector(toggleOpenEmailInMail): item.state = MailOpener.usesMail ? .on : .off
       case #selector(toggleRecordingAction): item.title = recorder.isRecording ? "Stop recording" : "Dictate a task"
       default: break
       }

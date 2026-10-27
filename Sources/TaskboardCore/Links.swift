@@ -2,6 +2,59 @@
 // commits and plain URLs. Attaching and state changes are journaled like any other change to a task.
 import Foundation
 
+// What it takes to find an email in the Mail app without its RFC 822 Message-ID (which the Gmail connector gives only
+// inside the full raw message): the subject, who sent it and when.
+public struct MailRef: Codable, Equatable, Hashable, Sendable {
+  public var subject: String
+  public var from: String?  // as shown: "Name <address>" or just an address
+  public var date: Date?  // the message's own date
+
+  public init(subject: String, from: String? = nil, date: Date? = nil) {
+    self.subject = subject
+    self.from = from
+    self.date = date
+  }
+
+  // The subject without "Re:", "Fwd:", "Ответ:" and "[2]"-style prefixes, which differ between a thread's messages.
+  public var coreSubject: String {
+    var text = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+    let prefixes = ["re", "fwd", "fw", "ответ", "пересл", "aw", "sv"]
+    var changed = true
+    while changed {
+      changed = false
+      let lower = text.lowercased()
+      for prefix in prefixes where lower.hasPrefix(prefix) {
+        var rest = text.dropFirst(prefix.count)
+        if rest.first == "[", let close = rest.firstIndex(of: "]") { rest = rest[rest.index(after: close)...] }
+        if rest.first == ":" {
+          text = rest.dropFirst().trimmingCharacters(in: .whitespaces)
+          changed = true
+          break
+        }
+      }
+    }
+    return text
+  }
+
+  // message://%3Cid%40host%3E — the form the Mail app opens. nil for an empty id.
+  public static func messageURL(forMessageID id: String) -> URL? {
+    let bare = id.trimmingCharacters(in: CharacterSet(charactersIn: "<> \n\t"))
+    guard !bare.isEmpty else { return nil }
+    let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+    guard let encoded = bare.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
+    return URL(string: "message://%3C\(encoded)%3E")
+  }
+
+  // The bare address from "Name <address>", lowercased.
+  public var fromAddress: String? {
+    guard let from = from?.trimmingCharacters(in: .whitespacesAndNewlines), !from.isEmpty else { return nil }
+    if let open = from.lastIndex(of: "<"), let close = from.lastIndex(of: ">"), open < close {
+      return from[from.index(after: open)..<close].trimmingCharacters(in: .whitespaces).lowercased()
+    }
+    return from.contains("@") ? from.lowercased() : nil
+  }
+}
+
 extension Board {
   public func isLinked(_ identity: String) -> Bool {
     tasks.contains { $0.links.contains { $0.identity == identity } }
@@ -45,16 +98,17 @@ extension Board {
   // The task's own `updated` stays put: this is not the user editing the task, and a Done task shouldn't age
   // differently because mail arrived about it.
   @discardableResult
-  public mutating func addUpdate(_ id: Int, text: String, source: String, link: String? = nil, date: Date = Date()) throws
-    -> Bool
-  {
+  public mutating func addUpdate(
+    _ id: Int, text: String, source: String, link: String? = nil, date: Date = Date(), mail: MailRef? = nil
+  ) throws -> Bool {
     guard let index = tasks.firstIndex(where: { $0.id == id }) else { throw BoardError.noTask(id) }
     let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !body.isEmpty else { throw BoardError.emptyName }
     let link = link.nonEmpty
     if let link, URL(string: link)?.scheme?.hasPrefix("http") != true { throw BoardError.badLink(link) }
     if tasks[index].updates.contains(where: { Proposal.normalize($0.text) == Proposal.normalize(body) }) { return false }
-    tasks[index].updates.append(TaskUpdate(text: String(body.prefix(1000)), source: source, link: link, date: date))
+    tasks[index].updates.append(
+      TaskUpdate(text: String(body.prefix(1000)), source: source, link: link, date: date, mail: mail))
     if tasks[index].updates.count > 100 { tasks[index].updates.removeFirst(tasks[index].updates.count - 100) }
     return true
   }
@@ -119,12 +173,15 @@ extension Board {
 
 extension TaskLink {
   // Where a task or an update came from: an email thread or a Slack message ("email", "slack"), anything else a plain link.
-  public static func source(kind: String, title: String?, url: String) -> TaskLink? {
+  public static func source(kind: String, title: String?, url: String, mail: MailRef? = nil) -> TaskLink? {
     guard let link = detect(url: url, title: title.nonEmpty ?? (kind == "email" ? "Email" : kind == "slack" ? "Slack message" : nil)) else {
       return nil
     }
     // A pull request or commit keeps what detect made of it; otherwise the source's own kind.
-    return link.kind == "link" && (kind == "email" || kind == "slack") ? TaskLink(kind: kind, title: link.title, url: link.url) : link
+    guard link.kind == "link", kind == "email" || kind == "slack" else { return link }
+    // An email can be found in Mail by its subject at least; the sender and date narrow it down.
+    let ref = kind == "email" ? (mail ?? title.nonEmpty.map { MailRef(subject: $0) }) : nil
+    return TaskLink(kind: kind, title: link.title, url: link.url, mail: ref)
   }
 
   // A link the user typed, pasted or dropped: only http(s). GitHub pull requests and commits and Claude artifacts are

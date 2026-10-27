@@ -39,6 +39,7 @@ cat > "$APP/Contents/Info.plist" <<PL
   <key>CFBundleDisplayName</key><string>Taskboard</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSAppleEventsUsageDescription</key><string>Taskboard asks Mail to find and open the email a task or an update came from.</string>
   <key>NSMicrophoneUsageDescription</key><string>Taskboard records a voice note when you press the dictation hotkey.</string>
   <key>NSSpeechRecognitionUsageDescription</key><string>Taskboard transcribes your voice notes on this Mac.</string>
 </dict>

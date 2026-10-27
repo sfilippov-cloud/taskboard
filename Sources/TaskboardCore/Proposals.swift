@@ -24,6 +24,7 @@ public struct Proposal: Codable, Identifiable, Equatable, Sendable {
   public var sourceTitle: String?  // e.g. the subject
   public var sourceLink: String?
   public var created: Date
+  public var mail: MailRef?  // for an email source: how to find it in the Mail app
 
   // Same thing proposed again → same key.
   public var key: String {
@@ -52,11 +53,14 @@ public struct ProposalDraft: Sendable {
   public var sourceRef: String?
   public var sourceTitle: String?
   public var sourceLink: String?
+  public var mail: MailRef?
 
   public init(
     title: String, notes: String? = nil, project: String? = nil, owner: String? = nil, priority: Priority = .normal,
-    reason: String, sourceKind: String, sourceRef: String? = nil, sourceTitle: String? = nil, sourceLink: String? = nil
+    reason: String, sourceKind: String, sourceRef: String? = nil, sourceTitle: String? = nil, sourceLink: String? = nil,
+    mail: MailRef? = nil
   ) {
+    self.mail = mail
     self.title = title
     self.notes = notes
     self.project = project
@@ -85,7 +89,8 @@ extension Board {
       Proposal(
         id: 0, kind: .addTask, title: title, notes: draft.notes.nonEmpty, project: try resolveProject(draft.project),
         owner: draft.owner.nonEmpty, priority: draft.priority, taskID: nil, column: nil, link: nil, reason: draft.reason, sourceKind: draft.sourceKind,
-        sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle, sourceLink: draft.sourceLink, created: now))
+        sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle, sourceLink: draft.sourceLink, created: now,
+        mail: draft.mail))
   }
 
   @discardableResult
@@ -152,7 +157,8 @@ extension Board {
         source: proposal.sourceKind)
       // The source (the email, the Slack message) is a link on the task, one click from the card.
       if let url = proposal.sourceLink,
-        let link = TaskLink.source(kind: proposal.sourceKind, title: proposal.sourceTitle ?? proposal.sourceRef, url: url)
+        let link = TaskLink.source(
+          kind: proposal.sourceKind, title: proposal.sourceTitle ?? proposal.sourceRef, url: url, mail: proposal.mail)
       {
         try? attach(link, to: task.id)
       }
