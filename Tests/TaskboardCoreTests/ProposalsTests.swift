@@ -133,3 +133,42 @@ import Testing
     #expect(try BoardStore.decoder.decode(SyncState.self, from: Data(old.utf8)).reports == nil)
   }
 }
+
+@Suite struct ProposalProjectTests {
+  @Test func theUserCanChangeTheProjectBeforeAccepting() throws {
+    var board = Board()
+    try board.addProject(name: "JSSI")
+    try board.addProject(name: "IATS")
+    let proposal = try board.proposeTask(
+      ProposalDraft(title: "Send the term sheet", project: "jssi", reason: "asked", sourceKind: "email"))
+    #expect(proposal.project == "JSSI" && proposal.suggestedProject == "JSSI")
+
+    try board.setProposalProject(proposal.id, "iats")
+    let changed = board.proposal(proposal.id)!
+    #expect(changed.project == "IATS" && changed.suggestedProject == "JSSI")  // the AI's pick is remembered
+    try board.setProposalProject(proposal.id, nil)
+    #expect(board.proposal(proposal.id)!.project == nil)
+    #expect(throws: BoardError.self) { try board.setProposalProject(proposal.id, "Nope") }
+    #expect(throws: BoardError.self) { try board.setProposalProject(99, "JSSI") }
+
+    try board.setProposalProject(proposal.id, "IATS")
+    let task = try #require(try board.acceptProposal(proposal.id))
+    #expect(task.project == "IATS")  // the task lands where the user put it
+  }
+
+  @Test func theChoiceDoesNotChangeWhatCountsAsTheSameProposal() throws {
+    var board = Board()
+    try board.addProject(name: "JSSI")
+    let proposal = try board.proposeTask(ProposalDraft(title: "Call Oleg", project: "JSSI", reason: "r", sourceKind: "email"))
+    try board.setProposalProject(proposal.id, nil)
+    #expect(throws: BoardError.self) { try board.proposeTask(ProposalDraft(title: "Call Oleg", project: "JSSI", reason: "r", sourceKind: "email")) }
+    // Rejecting it after the change is still remembered under the same key.
+    try board.rejectProposal(proposal.id)
+    #expect(throws: BoardError.self) { try board.proposeTask(ProposalDraft(title: "Call Oleg", reason: "r", sourceKind: "email")) }
+  }
+
+  @Test func oldProposalsHaveNoSuggestion() throws {
+    let json = #"{"id":1,"kind":"addTask","title":"x","priority":"normal","reason":"r","sourceKind":"email","created":"2026-10-01T10:00:00Z"}"#
+    #expect(try BoardStore.decoder.decode(Proposal.self, from: Data(json.utf8)).suggestedProject == nil)
+  }
+}

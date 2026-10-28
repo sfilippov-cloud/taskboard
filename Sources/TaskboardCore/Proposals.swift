@@ -25,6 +25,7 @@ public struct Proposal: Codable, Identifiable, Equatable, Sendable {
   public var sourceLink: String?
   public var created: Date
   public var mail: MailRef?  // for an email source: how to find it in the Mail app
+  public var suggestedProject: String?  // what the assistant proposed; `project` may be changed by the user before accepting
 
   // Same thing proposed again → same key.
   public var key: String {
@@ -85,12 +86,13 @@ extension Board {
     if tasks.contains(where: { $0.column != .done && Proposal.normalize($0.title) == normalized }) {
       throw BoardError.duplicateProposal("an open task with this title already exists")
     }
+    let project = try resolveProject(draft.project)
     return try enqueue(
       Proposal(
-        id: 0, kind: .addTask, title: title, notes: draft.notes.nonEmpty, project: try resolveProject(draft.project),
+        id: 0, kind: .addTask, title: title, notes: draft.notes.nonEmpty, project: project,
         owner: draft.owner.nonEmpty, priority: draft.priority, taskID: nil, column: nil, link: nil, reason: draft.reason, sourceKind: draft.sourceKind,
         sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle, sourceLink: draft.sourceLink, created: now,
-        mail: draft.mail))
+        mail: draft.mail, suggestedProject: project))
   }
 
   @discardableResult
@@ -172,6 +174,13 @@ extension Board {
       if let column = proposal.column { _ = try update(taskID) { $0.column = column } }
       return task(taskID)
     }
+  }
+
+  // The user picks the project a proposed task goes to (nil — no project); the assistant's own pick stays in
+  // `suggestedProject`. A name that isn't a project is refused; renaming/archiving elsewhere can't strand it.
+  public mutating func setProposalProject(_ id: Int, _ name: String?) throws {
+    guard let index = proposals.firstIndex(where: { $0.id == id }) else { throw BoardError.noProposal(id) }
+    proposals[index].project = try resolveProject(name)
   }
 
   public mutating func rejectProposal(_ id: Int) throws {

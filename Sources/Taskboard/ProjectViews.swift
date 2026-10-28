@@ -188,8 +188,11 @@ struct ProposalsView: View {
         .padding(12)
         List(board.proposals) { proposal in
           ProposalRow(
-            proposal: proposal, line: board.line(proposal),
-            accept: { act([proposal.id], accept: true) }, reject: { act([proposal.id], accept: false) })
+            proposal: proposal, line: board.line(proposal), projects: board.activeProjects,
+            accept: { act([proposal.id], accept: true) }, reject: { act([proposal.id], accept: false) },
+            setProject: { name in
+              model.change(source: "manual") { board in try board.setProposalProject(proposal.id, name) }
+            })
         }
       }
     }
@@ -207,8 +210,37 @@ struct ProposalsView: View {
 struct ProposalRow: View {
   let proposal: Proposal
   let line: String
+  let projects: [Project]
   let accept: () -> Void
   let reject: () -> Void
+  let setProject: (String?) -> Void
+
+  // What the assistant proposed (proposals saved before it was remembered: the project they have now).
+  private var suggested: String? { proposal.suggestedProject ?? proposal.project }
+
+  private var projectNames: [String] {
+    var names = projects.map(\.name)
+    if let current = proposal.project, !names.contains(current) { names.append(current) }  // archived since
+    return names
+  }
+
+  // "Project ▾" for a proposed task: the assistant's pick is preselected and marked, and wherever the user puts it is
+  // where the task lands when accepted — with this row's button, the widget's ✓ or "Accept all".
+  private var projectPicker: some View {
+    HStack(spacing: 6) {
+      Text("Project").font(.caption2).foregroundStyle(.secondary)
+      Picker(
+        "Project", selection: Binding(get: { proposal.project }, set: { setProject($0) })
+      ) {
+        Text("No project" + (suggested == nil ? "  ·  AI" : "")).tag(String?.none)
+        ForEach(projectNames, id: \.self) { name in
+          Text(name + (name == suggested ? "  ·  AI" : "")).tag(Optional(name))
+        }
+      }
+      .labelsHidden().pickerStyle(.menu).fixedSize()
+      .help("Where the task goes when you accept it. “AI” marks what the assistant proposed.")
+    }
+  }
 
   var body: some View {
     HStack(alignment: .top, spacing: 10) {
@@ -219,6 +251,7 @@ struct ProposalRow: View {
           Label("for \(owner)", systemImage: "person").font(.caption2).foregroundStyle(.orange)
         }
         if let notes = proposal.notes { Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
+        if proposal.kind == .addTask { projectPicker }
         HStack(spacing: 6) {
           Image(systemName: proposal.sourceKind == "slack" ? "number" : proposal.sourceKind == "github" ? "arrow.triangle.pull" : "envelope")
             .font(.caption2).foregroundStyle(.tertiary)

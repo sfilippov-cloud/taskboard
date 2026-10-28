@@ -131,6 +131,12 @@ tools to create, change or delete tasks (only to propose, log, add updates and f
 task-like — and a "this is done" — becomes a proposal. Your own dictation is different: you said it, so it goes
 straight to the board.
 
+**Choose the project before accepting.** In the Proposals tab every proposed task has a **Project** drop-down: the
+assistant's pick is preselected and marked "· AI", "No project" and every active project are offered, and wherever you
+put it is where the task lands when you accept it — with the row's button, the widget's ✓ or "Accept all". The
+assistant's own pick is remembered, so you can see it after changing your mind. (Proposals to move a task or to link a
+pull request belong to an existing task and have no project to choose.)
+
 ## Updates on a task
 
 Every task has a timeline of news: what an email, a Slack message, a document, a voice note or you said about it.
