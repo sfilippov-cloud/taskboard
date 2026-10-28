@@ -138,7 +138,6 @@ struct SyncButton: View {
           switch kind {
           case .email: "Check the inbox for the last few days: journal entries and proposals (read-only)"
           case .slack: "Check Slack — mapped channels, mentions and direct messages — for the last few days (read-only)"
-          case .github: "Refresh the state of linked pull requests and propose which task new ones belong to (read-only)"
           }
         }())
     }
@@ -253,7 +252,7 @@ struct ProposalRow: View {
         if let notes = proposal.notes { Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
         if proposal.kind == .addTask { projectPicker }
         HStack(spacing: 6) {
-          Image(systemName: proposal.sourceKind == "slack" ? "number" : proposal.sourceKind == "github" ? "arrow.triangle.pull" : "envelope")
+          Image(systemName: proposal.sourceKind == "slack" ? "number" : "envelope")
             .font(.caption2).foregroundStyle(.tertiary)
           if proposal.kind == .linkTask, let link = proposal.link, let url = URL(string: link.url) {
             Link("Open \(link.identity)", destination: url).font(.caption2).lineLimit(1)

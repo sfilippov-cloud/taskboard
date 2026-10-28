@@ -25,58 +25,15 @@ import Testing
     #expect(!board.isLinked("o/r#1255"))
   }
 
-  @Test func pullRequestStateFollowsGitHubWithoutTouchingUpdated() throws {
-    var board = Board()
-    let task = board.add(title: "T", source: "manual")
-    try board.attach(pr(), to: task.id)
-    let updated = board.task(task.id)!.updated
-    board.refreshPullRequests(["o/r#1255": (title: "feat: AML screening", state: "merged", live: ["test"])])
-    let link = board.task(task.id)!.links[0]
-    #expect(link.state == "merged" && link.live == ["test"])
-    #expect(board.task(task.id)!.updated == updated)
-    board.refreshPullRequests(["o/r#1": (title: "other", state: "merged", live: [])])  // unrelated PR: nothing changes
-    #expect(board.task(task.id)!.links[0].state == "merged")
-    // The stand didn't answer: "live on test" is kept; a real "not deployed" clears it.
-    board.refreshPullRequests(["o/r#1255": (title: "feat: AML screening", state: "merged", live: nil)])
-    #expect(board.task(task.id)!.links[0].live == ["test"])
-    board.refreshPullRequests(["o/r#1255": (title: "feat: AML screening", state: "merged", live: [])])
-    #expect(board.task(task.id)!.links[0].live == nil)
-  }
-
-  @Test func linkChangesAreJournaled() throws {
+  @Test func attachingALinkIsJournaled() throws {
     var board = Board()
     let task = board.add(title: "T", project: nil, source: "manual")
-    var before = board
+    let before = board
     try board.attach(pr(), to: task.id)
     #expect(board.changes(since: before).map(\.text) == ["#1 T: linked PR o/r#1255 “feat: AML screening”\nhttps://github.com/o/r/pull/1255"])
-    before = board
-    board.refreshPullRequests(["o/r#1255": (title: "feat: AML screening", state: "merged", live: [])])
-    #expect(board.changes(since: before).map(\.text) == ["#1 T: PR o/r#1255 “feat: AML screening” is now merged"])
-    before = board
-    board.refreshPullRequests(["o/r#1255": (title: "feat: AML screening", state: "merged", live: ["test"])])
-    #expect(board.changes(since: before).map(\.text) == ["#1 T: PR o/r#1255 “feat: AML screening” is live on test"])
-  }
-
-  @Test func linkProposalAttachesAndMoves() throws {
-    var board = Board()
-    let task = board.add(title: "AML screening", source: "manual")
-    let draft = ProposalDraft(title: "", reason: "PR implements the task", sourceKind: "github", sourceRef: "o/r#1255")
-    #expect(throws: BoardError.self) { try board.proposeLink(99, pr(), draft) }
-    let proposal = try board.proposeLink(task.id, pr(state: "merged"), moveTo: .done, draft)
-    #expect(board.line(proposal) == "PR o/r#1255 “feat: AML screening” → #1 AML screening · move to Done")
-    #expect(throws: BoardError.self) { try board.proposeLink(task.id, pr(state: "merged"), moveTo: .done, draft) }  // waiting
-    try board.acceptProposal(proposal.id)
-    let linked = board.task(task.id)!
-    #expect(linked.column == .done && linked.links.count == 1)
-    #expect(throws: BoardError.self) { try board.proposeLink(task.id, pr(), draft) }  // already linked
-
-    // Same column as now: no move is proposed with it.
-    let other = board.add(title: "Other", source: "manual")
-    let second = try board.proposeLink(other.id, pr(1300), moveTo: .todo, draft)
-    #expect(second.column == nil)
-    // Rejected links are not proposed again.
-    try board.rejectProposal(second.id)
-    #expect(throws: BoardError.self) { try board.proposeLink(other.id, pr(1300), draft) }
+    let again = board
+    try board.attach(pr(), to: task.id)  // already there: nothing new
+    #expect(board.changes(since: again).isEmpty)
   }
 
   @Test func oldTasksHaveNoLinks() throws {
@@ -220,5 +177,25 @@ import Testing
     var again = board
     again.adoptMailReferences()
     #expect(again == board)
+  }
+}
+
+@Suite struct SavedLinkProposalTests {
+  @Test func aBoardSavedWithALinkProposalStillLoadsAndTheProposalCanBeHandled() throws {
+    let json = """
+      {"nextID":2,"nextProposalID":2,
+       "tasks":[{"id":1,"title":"AML screening","priority":"normal","column":"todo","source":"manual",
+                 "created":"2026-10-01T10:00:00Z","updated":"2026-10-01T10:00:00Z"}],
+       "proposals":[{"id":1,"kind":"linkTask","title":"AML screening","priority":"normal","taskID":1,"column":"done",
+                     "link":{"kind":"pr","title":"feat: AML","url":"https://github.com/o/r/pull/9","repo":"o/r","number":9,
+                             "state":"merged","live":["test"],"added":"2026-10-02T10:00:00Z"},
+                     "reason":"r","sourceKind":"github","created":"2026-10-02T10:00:00Z"}]}
+      """
+    var board = try BoardStore.decoder.decode(Board.self, from: Data(json.utf8))
+    #expect(board.proposals.count == 1 && board.proposals[0].kind == .linkTask)
+    #expect(board.line(board.proposals[0]) == "PR o/r#9 “feat: AML” → #1 AML screening · move to Done")
+    try board.acceptProposal(1)
+    let task = board.task(1)!
+    #expect(task.column == .done && task.links.count == 1 && task.links[0].state == "merged")
   }
 }

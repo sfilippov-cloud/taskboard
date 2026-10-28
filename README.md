@@ -160,8 +160,8 @@ conversation: the clipboard button next to "checked …" — useful when a propo
 ## Links on tasks: pull requests and artifacts
 
 A task can carry links — pull requests, Claude artifacts, commits, documents, any web page. They show as chips on
-the card (click opens them); the task window lists them with a remove button. Every link added or changing state is
-noted in the project journal.
+the card (click opens them); the task window lists them with a remove button. Every link added is noted in the project
+journal.
 
 **The source of a task or an update is one click away.** A task created from an accepted proposal gets its source as a
 chip — an envelope with the email's subject, a "#" with the Slack message — and the journal line "+ #12 …" carries
@@ -193,30 +193,18 @@ the email says).
 - drag a link from the browser onto a card.
 
 A GitHub pull request or commit and a Claude artifact are recognised as such (a pull request keeps its repo and
-number, so the GitHub check keeps its state current while it is in the checked window); anything else is a plain link,
+number); anything else is a plain link,
 named after its host and the last part of the path unless you give a title. Only http(s) addresses are accepted;
 the same link isn't added twice.
 
-- **GitHub check** (`GitHub` button / "Check GitHub now"; the first run is manual, then every 60 minutes).
-  1. It asks GitHub (`gh`, read-only) for pull requests into `test` of `JetSetBackend` and `monorepo` (all the
-     frontend apps) updated in the last 7 days, without bots, the automatic `sync: …` ones and the
-     `merge/dev-to-test-…` promotions.
-  2. **No Claude here:** every link already on a task takes the PR's current state — open, merged, **live on
-     test**. "Live" means the merge commit is part of the commit the stand reports on `/api/version/`
-     (GitHub's compare API); if the stand doesn't answer, what was known stays. Only the backend has such an
-     address: the frontend apps report no commit, so their PRs show open / merged but no "live".
-  3. Pull requests not linked to any task and not seen before go to Claude, which matches them **by meaning**
-     with your open tasks and **proposes**: attach this PR to task #N, optionally moving it (doing for an open PR,
-     done only when a merged PR clearly completes the task). Nothing is attached until you accept; a rejected
-     match isn't proposed again. It can't change tasks itself.
-  The clipboard button next to "checked …" shows what it looked at, PR by PR.
 - **Artifacts, from the session itself.** Claude, in a session where the taskboard MCP and skill are installed,
   attaches an artifact it just published to the task it belongs to (`attach_link`) — only when it's clear which
   task; otherwise it asks. The `wingform` profile has both. For another profile (e.g. your everyday one):
   `CLAUDE_PROFILE_DIR=~/.claude ./install.sh`.
-- Settings (`defaults write com.lozhka13.taskboard …`): `githubRepos` ("owner/name, owner/name", default
-  `JetSetProjects/JetSetBackend, JetSetProjects/monorepo`), `githubBase` (`test`), `githubVersionURLs`
-  ("owner/name=https://…/api/version/, …"), `githubDays` (7), `githubSyncMinutes` (60, `0` — no automatic runs).
+
+There is no GitHub check: pull requests are links like any other (paste one, or Claude attaches it), with no state kept
+up to date. (It was tried — it refreshed the state of linked PRs and proposed which task new ones belong to — and
+removed as not useful.)
 
 ## Install
 

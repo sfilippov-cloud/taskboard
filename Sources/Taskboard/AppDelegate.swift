@@ -61,7 +61,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     menu.addItem(item("Open board", #selector(showBoardAction), key: "k"))
     menu.addItem(item(SyncKind.email.menuTitle, #selector(syncEmailAction)))
     menu.addItem(item(SyncKind.slack.menuTitle, #selector(syncSlackAction)))
-    menu.addItem(item(SyncKind.github.menuTitle, #selector(syncGitHubAction)))
     menu.addItem(item("Show widget", #selector(toggleWidget), key: "w"))
     menu.addItem(.separator())
     menu.addItem(item("Show in Dock", #selector(toggleDock)))
@@ -111,7 +110,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   @objc private func showBoardAction() { showBoard() }
   @objc private func syncEmailAction() { model.sync(.email, manual: true) }
   @objc private func syncSlackAction() { model.sync(.slack, manual: true) }
-  @objc private func syncGitHubAction() { model.sync(.github, manual: true) }
 
   // Hidden by the user; still shown while a voice note is recorded and processed.
   private var widgetHidden: Bool {
@@ -198,7 +196,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     actions.addItem(.separator())
     for (kind, selector) in [
       (SyncKind.email, #selector(syncEmailAction)), (SyncKind.slack, #selector(syncSlackAction)),
-      (SyncKind.github, #selector(syncGitHubAction)),
     ] { actions.addItem(item(kind.menuTitle, selector)) }
     actions.addItem(.separator())
     actions.addItem(item("Show widget", #selector(toggleWidget), key: "w"))

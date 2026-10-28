@@ -1,4 +1,4 @@
-// Links on tasks: pull requests (kept up to date by the GitHub check), Claude artifacts (attached from a session),
+// Links on tasks: pull requests, Claude artifacts (attached from a session),
 // commits and plain URLs. Attaching and state changes are journaled like any other change to a task.
 import Foundation
 
@@ -76,24 +76,6 @@ extension Board {
     tasks[index].links.removeAll { $0.url == url }
   }
 
-  // Pull requests as the GitHub check saw them now: every link to one of them takes the new state.
-  // `live: nil` means "couldn't tell" (the stand didn't answer): what was known stays; [] means "not deployed".
-  public mutating func refreshPullRequests(_ current: [String: (title: String, state: String, live: [String]?)]) {
-    for t in tasks.indices {
-      for l in tasks[t].links.indices {
-        let link = tasks[t].links[l]
-        guard link.kind == "pr", let now = current[link.identity] else { continue }
-        let live = now.live.map { $0.isEmpty ? nil : $0 } ?? link.live
-        if link.state != now.state || link.live != live || link.title != now.title {
-          tasks[t].links[l].state = now.state
-          tasks[t].links[l].live = live
-          tasks[t].links[l].title = now.title
-          // Not a user edit of the task: leave `updated` alone, so "Done" doesn't age out because of it.
-        }
-      }
-    }
-  }
-
   // News about a task. The same text on the same task is not repeated; the oldest fall off after 100.
   // The task's own `updated` stays put: this is not the user editing the task, and a Done task shouldn't age
   // differently because mail arrived about it.
@@ -155,7 +137,7 @@ extension Board {
     }
   }
 
-  // Journal lines for links that appeared or changed state since `before`.
+  // Journal lines for links that appeared since `before` (and updates that were added).
   func linkChanges(since before: Board) -> [(project: String?, text: String)] {
     var result: [(String?, String)] = []
     let old = Dictionary(uniqueKeysWithValues: before.tasks.map { ($0.id, $0) })
@@ -165,17 +147,8 @@ extension Board {
       for update in task.updates where !known.contains(update.id) {
         result.append((task.project, "#\(task.id) \(task.title): " + update.text + (update.link.map { "\n" + $0 } ?? "")))
       }
-      for link in task.links {
-        let head = "#\(task.id) \(task.title): "
-        guard let was = previous.links.first(where: { $0.identity == link.identity }) else {
-          result.append((task.project, head + "linked " + link.label + "\n" + link.url))
-          continue
-        }
-        if link.state != was.state, let state = link.state {
-          result.append((task.project, head + "\(link.label) is now \(state)"))
-        }
-        let nowLive = Set(link.live ?? []).subtracting(was.live ?? [])
-        for env in nowLive.sorted() { result.append((task.project, head + "\(link.label) is live on \(env)")) }
+      for link in task.links where !previous.links.contains(where: { $0.identity == link.identity }) {
+        result.append((task.project, "#\(task.id) \(task.title): linked " + link.label + "\n" + link.url))
       }
     }
     return result
@@ -196,7 +169,7 @@ extension TaskLink {
   }
 
   // A link the user typed, pasted or dropped: only http(s). GitHub pull requests and commits and Claude artifacts are
-  // recognised (a PR then keeps its repo and number, so the GitHub check can keep its state current); anything else is
+  // recognised (a PR keeps its repo and number); anything else is
   // a plain link, named by its host and last path part unless a title is given.
   public static func detect(url text: String, title: String? = nil) -> TaskLink? {
     let raw = text.trimmingCharacters(in: .whitespacesAndNewlines)

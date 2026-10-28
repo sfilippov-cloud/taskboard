@@ -113,5 +113,5 @@ Tasks carry links — pull requests, Claude artifacts, commits, documents. The c
   (`kind: artifact` by default). Find the task with `list_tasks` and attach only when it is **clear** which
   task it is; if it isn't, don't guess — say which tasks it could belong to and let the user pick. Attaching
   twice is harmless.
-- Pull requests are also picked up by the GitHub check: it keeps their state (open, merged, live on test)
-  current and proposes which task a PR belongs to. Attach one by hand only when the user asks.
+- Pull requests are links like any other: attach one (`kind: pr`, with `repo` and `number`) when it belongs to a
+  task and the user asks, or when you opened it for that task. Nothing keeps their state up to date.

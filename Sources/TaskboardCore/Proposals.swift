@@ -4,7 +4,9 @@
 import Foundation
 
 public enum ProposalKind: String, Codable, Sendable {
-  case addTask, moveTask, linkTask  // linkTask: attach a link (a pull request), optionally moving the task too
+  // linkTask is no longer proposed by anything; it stays so that a board saved with such a proposal still loads
+  // (an unknown case would fail the whole decode) and the proposal can still be accepted or rejected.
+  case addTask, moveTask, linkTask
 }
 
 public struct Proposal: Codable, Identifiable, Equatable, Sendable {
@@ -108,25 +110,6 @@ extension Board {
         id: 0, kind: .moveTask, title: task.title, notes: draft.notes.nonEmpty, project: task.project,
         owner: task.owner, priority: task.priority, taskID: taskID, column: column, link: nil, reason: draft.reason, sourceKind: draft.sourceKind,
         sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle, sourceLink: draft.sourceLink, created: now))
-  }
-
-  // Propose attaching a link (a pull request) to an open task, and moving the task along with it.
-  @discardableResult
-  public mutating func proposeLink(
-    _ taskID: Int, _ link: TaskLink, moveTo column: Column? = nil, _ draft: ProposalDraft, now: Date = Date()
-  ) throws -> Proposal {
-    guard let task = task(taskID) else { throw BoardError.noTask(taskID) }
-    guard URL(string: link.url)?.scheme?.hasPrefix("http") == true else { throw BoardError.badLink(link.url) }
-    if task.links.contains(where: { $0.identity == link.identity }) {
-      throw BoardError.duplicateProposal("#\(taskID) already has this link")
-    }
-    let target = column.flatMap { $0 == task.column ? nil : $0 }
-    return try enqueue(
-      Proposal(
-        id: 0, kind: .linkTask, title: task.title, notes: draft.notes.nonEmpty, project: task.project,
-        owner: task.owner, priority: task.priority, taskID: taskID, column: target, link: link, reason: draft.reason,
-        sourceKind: draft.sourceKind, sourceRef: draft.sourceRef, sourceTitle: draft.sourceTitle,
-        sourceLink: draft.sourceLink, created: now))
   }
 
   private mutating func enqueue(_ proposal: Proposal) throws -> Proposal {
