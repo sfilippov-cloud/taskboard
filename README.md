@@ -206,6 +206,19 @@ There is no GitHub check: pull requests are links like any other (paste one, or 
 up to date. (It was tried — it refreshed the state of linked PRs and proposed which task new ones belong to — and
 removed as not useful.)
 
+## Text size
+
+**View → Bigger Text / Smaller Text / Default Text Size** (⌘+ or ⌘=, ⌘−, ⌘0) scales the text of the whole app: the
+board, its windows and the widget together, in nine steps from 80% to 200%. The choice is remembered. macOS has no
+Dynamic Type, so the app does the scaling itself (`TextScale.swift`; views use `.scaled(.caption)` instead of
+`.font(.caption)`). The widget never takes focus, so ⌘+ can't reach it while another app is in front: right-click
+the widget for the same three commands, or press ⌘+ with the board in front.
+
+For layout work there is a developer tool that needs no screen access:
+`TASKBOARD_DIR=/tmp/scratch .build/debug/Taskboard --snapshot /tmp/out` draws the board, widget and sheets from
+sample data (written to `TASKBOARD_DIR`, never the real board) into PNG files, light and dark;
+`SNAPSHOT_SCALES=1,1.4` adds other text sizes.
+
 ## Install
 
 ```bash

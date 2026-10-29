@@ -119,7 +119,7 @@ struct BoardView: View {
         Picker("", selection: $model.boardTab) {
           ForEach(BoardTab.allCases, id: \.self) { Text(label(for: $0)).tag($0) }
         }
-        .pickerStyle(.segmented).labelsHidden().frame(width: 360)
+        .pickerStyle(.segmented).labelsHidden().scaledFrame(width: 360)
         if let selected {
           Button { projectForm = .edit(selected) } label: { Image(systemName: "slider.horizontal.3") }
             .help("Project settings")
@@ -135,10 +135,10 @@ struct BoardView: View {
         if model.boardTab == .board {
           TextField(newTaskPlaceholder, text: $newTitle).textFieldStyle(.roundedBorder).onSubmit(add)
         }
-        Text("⌃⌥⌘R — by voice").font(.caption).foregroundStyle(.secondary)
+        Text("⌃⌥⌘R — by voice").scaled(.caption).foregroundStyle(.secondary)
       }
       if let summary = selected?.summary {
-        Text(summary).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+        Text(summary).scaled(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
       }
     }
     .padding(12)
@@ -213,7 +213,7 @@ struct ColumnView: View {
       ? board.tasks(in: .done).filter(filter) : board.ordered(board.tasks.filter { $0.column == column && filter($0) })
     VStack(alignment: .leading, spacing: 8) {
       HStack {
-        Text(column.title).font(.headline)
+        Text(column.title).scaled(.headline)
         Text("\(tasks.count)").foregroundStyle(.secondary)
       }
       ScrollView {
@@ -300,44 +300,44 @@ struct CardView: View {
     let waiting = board.waitingOn(task)
     VStack(alignment: .leading, spacing: 4) {
       if let parent = task.parent.flatMap({ board.task($0) }) {
-        Text("↳ #\(parent.id) \(parent.title)").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        Text("↳ #\(parent.id) \(parent.title)").scaled(.caption2).foregroundStyle(.secondary).lineLimit(1)
       }
       HStack(alignment: .firstTextBaseline) {
         if task.column == .todo && !waiting.isEmpty {
-          Image(systemName: "lock").foregroundStyle(.secondary).font(.caption)
+          Image(systemName: "lock").foregroundStyle(.secondary).scaled(.caption)
         }
-        if task.priority == .high { Image(systemName: "flag.fill").foregroundStyle(.orange).font(.caption) }
+        if task.priority == .high { Image(systemName: "flag.fill").foregroundStyle(.orange).scaled(.caption) }
         Text(task.title).fontWeight(task.priority == .high ? .semibold : .regular)
           .strikethrough(task.column == .done, color: .secondary)
         Spacer(minLength: 0)
-        Text("#\(task.id)").font(.caption2).foregroundStyle(.tertiary)
+        Text("#\(task.id)").scaled(.caption2).foregroundStyle(.tertiary)
       }
       if let notes = task.notes {
-        Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3)
+        Text(notes).scaled(.caption).foregroundStyle(.secondary).lineLimit(3)
       }
       if let latest = task.updates.last { LatestUpdate(update: latest, total: task.updates.count) }
       if !task.links.isEmpty { LinkChips(links: task.links) }
       if !waiting.isEmpty && task.column != .done {
         Text("waiting on " + waiting.map { "#\($0.id) \($0.title)" }.joined(separator: ", "))
-          .font(.caption2).foregroundStyle(.orange).lineLimit(2)
+          .scaled(.caption2).foregroundStyle(.orange).lineLimit(2)
       }
       HStack(spacing: 6) {
         if let progress = board.progress(of: task.id) {
           Label("\(progress.done)/\(progress.total)", systemImage: "list.bullet.indent")
-            .font(.caption2).foregroundStyle(.secondary)
+            .scaled(.caption2).foregroundStyle(.secondary)
         }
         if let project = task.project {
-          Text(project).font(.caption2).padding(.horizontal, 6).padding(.vertical, 1)
+          Text(project).scaled(.caption2).padding(.horizontal, 6).padding(.vertical, 1)
             .background(Capsule().fill(Color.accentColor.opacity(0.15)))
         }
         if let owner = task.owner {
-          Label(owner, systemImage: "person").font(.caption2).foregroundStyle(owner == "me" ? .secondary : Color.orange)
+          Label(owner, systemImage: "person").scaled(.caption2).foregroundStyle(owner == "me" ? .secondary : Color.orange)
             .help(owner == "me" ? "Yours" : "Someone else's task — owner: \(owner)")
         }
         Image(systemName: Self.icon(for: task.source))
-          .font(.caption2).foregroundStyle(.tertiary)
+          .scaled(.caption2).foregroundStyle(.tertiary)
         Spacer()
-        Text(task.updated, format: .relative(presentation: .named)).font(.caption2).foregroundStyle(.tertiary)
+        Text(task.updated, format: .relative(presentation: .named)).scaled(.caption2).foregroundStyle(.tertiary)
       }
     }
     .padding(8)
@@ -372,8 +372,8 @@ struct LatestUpdate: View {
 
   var body: some View {
     HStack(alignment: .firstTextBaseline, spacing: 5) {
-      Image(systemName: CardView.icon(for: update.source)).font(.caption2).foregroundStyle(Color.accentColor)
-      Text(update.text).font(.caption).lineLimit(2)
+      Image(systemName: CardView.icon(for: update.source)).scaled(.caption2).foregroundStyle(Color.accentColor)
+      Text(update.text).scaled(.caption).lineLimit(2)
       Spacer(minLength: 0)
       if let url = update.link.flatMap(URL.init(string:)) {
         SourceLink(url: url, mail: update.mail) { Image(systemName: "arrow.up.right.square") }
@@ -381,8 +381,8 @@ struct LatestUpdate: View {
           .help(update.mail != nil && MailOpener.usesMail ? "Open the email in Mail" : "Open the source: \(update.link ?? "")")
       }
       VStack(alignment: .trailing, spacing: 1) {
-        Text(update.date, format: .relative(presentation: .named)).font(.caption2).foregroundStyle(.tertiary)
-        if total > 1 { Text("+\(total - 1) earlier").font(.caption2).foregroundStyle(.tertiary) }
+        Text(update.date, format: .relative(presentation: .named)).scaled(.caption2).foregroundStyle(.tertiary)
+        if total > 1 { Text("+\(total - 1) earlier").scaled(.caption2).foregroundStyle(.tertiary) }
       }
     }
     .padding(.horizontal, 6).padding(.vertical, 4)
@@ -402,17 +402,17 @@ struct LinkChips: View {
           SourceLink(url: url, mail: link.mail) { chip(link) }.buttonStyle(.plain).help(helpText(link))
         }
       }
-      if links.count > 4 { Text("+\(links.count - 4)").font(.caption2).foregroundStyle(.secondary) }
+      if links.count > 4 { Text("+\(links.count - 4)").scaled(.caption2).foregroundStyle(.secondary) }
     }
   }
 
   private func chip(_ link: TaskLink) -> some View {
     HStack(spacing: 3) {
-      Image(systemName: Self.icon(for: link)).font(.caption2)
-      Text(link.chip).font(.caption2).lineLimit(1)
+      Image(systemName: Self.icon(for: link)).scaled(.caption2)
+      Text(link.chip).scaled(.caption2).lineLimit(1)
       if let live = link.live, !live.isEmpty {
-        Image(systemName: "checkmark.seal.fill").font(.caption2)
-        Text(live.joined(separator: ",")).font(.caption2)
+        Image(systemName: "checkmark.seal.fill").scaled(.caption2)
+        Text(live.joined(separator: ",")).scaled(.caption2)
       }
     }
     .padding(.horizontal, 6).padding(.vertical, 2)
@@ -464,6 +464,7 @@ struct EditTaskView: View {
   @State private var newLinkTitle = ""
   @State private var linkError: String?
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.textScale) private var scale
 
   // The current project stays selectable even if it has been archived since.
   private var projectNames: [String] {
@@ -488,80 +489,115 @@ struct EditTaskView: View {
     newUpdate = ""
   }
 
-  var body: some View {
-    Form {
-      TextField("Title", text: $task.title)
-      Picker("Project", selection: $task.project) {
-        Text("No project").tag(String?.none)
-        ForEach(projectNames, id: \.self) { Text($0).tag(Optional($0)) }
+  private var linksSection: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Links").scaled(.headline)
+      HStack {
+        TextField("Link", text: $newLinkURL, prompt: Text("Paste a link — Enter")).onSubmit(submitLink)
+        TextField("Link title", text: $newLinkTitle, prompt: Text("Title (optional)")).onSubmit(submitLink)
+          .scaledFrame(width: 160)
+        Button("Add", action: submitLink).disabled(newLinkURL.isBlank)
       }
-      TextField("Owner (a name, or “me”)", text: Binding(get: { task.owner ?? "" }, set: { task.owner = $0.isBlank ? nil : $0 }))
-      Picker("Priority", selection: $task.priority) {
-        ForEach(Priority.allCases, id: \.self) { Text($0.label).tag($0) }
-      }
-      Section("Links") {
-        HStack {
-          TextField("Paste a link — Enter", text: $newLinkURL).onSubmit(submitLink)
-          TextField("Title (optional)", text: $newLinkTitle).onSubmit(submitLink).frame(width: 150)
-          Button("Add", action: submitLink).disabled(newLinkURL.isBlank)
-        }
-        if let linkError { Text(linkError).font(.caption).foregroundStyle(.red) }
-        ForEach(links, id: \.url) { link in
-          HStack {
-            Image(systemName: LinkChips.icon(for: link))
-            if let url = URL(string: link.url) {
-              SourceLink(url: url, mail: link.mail) { Text(link.label).lineLimit(1) }
-                .buttonStyle(.plain).foregroundStyle(Color.accentColor).help(link.url)
-            } else {
-              Text(link.label).lineLimit(1)
-            }
-            Spacer()
-            Button { removeLink(link.url) } label: { Image(systemName: "xmark.circle") }
-              .buttonStyle(.plain).help("Remove this link")
+      .textFieldStyle(.roundedBorder)
+      if let linkError { Text(linkError).scaled(.caption).foregroundStyle(.red) }
+      ForEach(links, id: \.url) { link in
+        HStack(spacing: 6) {
+          Image(systemName: LinkChips.icon(for: link)).foregroundStyle(.secondary).frame(width: 18)
+          if let url = URL(string: link.url) {
+            SourceLink(url: url, mail: link.mail) { Text(link.label).lineLimit(1).truncationMode(.tail) }
+              .buttonStyle(.plain).foregroundStyle(Color.accentColor).help(link.url)
+          } else {
+            Text(link.label).lineLimit(1)
           }
+          Spacer(minLength: 8)
+          Button { removeLink(link.url) } label: { Image(systemName: "xmark.circle") }
+            .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove this link")
         }
       }
-      Section("Updates") {
-        HStack {
-          TextField("Add an update — Enter", text: $newUpdate).onSubmit(submitUpdate)
-          Button("Add", action: submitUpdate).disabled(newUpdate.isBlank)
-        }
-        if updates.isEmpty {
-          Text("News about this task from email, Slack, documents and you will collect here.")
-            .font(.caption).foregroundStyle(.secondary)
-        } else {
-          ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-              ForEach(updates.reversed()) { update in
-                VStack(alignment: .leading, spacing: 2) {
-                  HStack(spacing: 6) {
-                    Image(systemName: CardView.icon(for: update.source)).font(.caption2).foregroundStyle(.secondary)
-                    Text(update.date, format: .dateTime.day().month().hour().minute()).font(.caption).foregroundStyle(.secondary)
-                    if let link = update.link.flatMap(URL.init(string:)) {
-                      SourceLink(url: link, mail: update.mail) { Label("source", systemImage: "arrow.up.right.square") }
-                        .buttonStyle(.plain).foregroundStyle(Color.accentColor).font(.caption)
-                    }
-                    Spacer()
-                    Button { removeUpdate(update.id) } label: { Image(systemName: "xmark.circle") }
-                      .buttonStyle(.plain).foregroundStyle(.tertiary).help("Remove this update")
-                  }
-                  Text(update.text).font(.callout).textSelection(.enabled)
-                }
-              }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-          }
-          .frame(maxHeight: 220)
-        }
-      }
-      TextField(
-        "Notes", text: Binding(get: { task.notes ?? "" }, set: { task.notes = $0.isBlank ? nil : $0 }),
-        axis: .vertical
-      )
-      .lineLimit(4...12)
     }
-    .padding()
-    .frame(width: 460)
+  }
+
+  private var updatesSection: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Updates").scaled(.headline)
+      HStack {
+        TextField("Update", text: $newUpdate, prompt: Text("Add an update — Enter")).onSubmit(submitUpdate)
+          .textFieldStyle(.roundedBorder)
+        Button("Add", action: submitUpdate).disabled(newUpdate.isBlank)
+      }
+      if updates.isEmpty {
+        Text("News about this task from email, Slack, documents and you will collect here.")
+          .scaled(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+      } else {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 10) {
+            ForEach(updates.reversed()) { update in updateRow(update) }
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxHeight: 220 * scale)
+      }
+    }
+  }
+
+  private func updateRow(_ update: TaskUpdate) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+      HStack(spacing: 6) {
+        Image(systemName: CardView.icon(for: update.source)).scaled(.caption2).foregroundStyle(.secondary)
+        Text(update.date, format: .dateTime.day().month().hour().minute()).scaled(.caption).foregroundStyle(.secondary)
+        if let link = update.link.flatMap(URL.init(string:)) {
+          SourceLink(url: link, mail: update.mail) { Label("source", systemImage: "arrow.up.right.square") }
+            .buttonStyle(.plain).foregroundStyle(Color.accentColor).scaled(.caption)
+        }
+        Spacer()
+        Button { removeUpdate(update.id) } label: { Image(systemName: "xmark.circle") }
+          .buttonStyle(.plain).foregroundStyle(.tertiary).help("Remove this update")
+      }
+      Text(update.text).scaled(.callout).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 8) {
+        FormRow("Title") { TextField("Title", text: $task.title) }
+        FormRow("Project") {
+          Picker("Project", selection: $task.project) {
+            Text("No project").tag(String?.none)
+            ForEach(projectNames, id: \.self) { Text($0).tag(Optional($0)) }
+          }
+          .fixedSize()
+        }
+        FormRow("Owner") {
+          TextField(
+            "Owner", text: Binding(get: { task.owner ?? "" }, set: { task.owner = $0.isBlank ? nil : $0 }),
+            prompt: Text("A name, or “me”"))
+        }
+        FormRow("Priority") {
+          Picker("Priority", selection: $task.priority) {
+            ForEach(Priority.allCases, id: \.self) { Text($0.label).tag($0) }
+          }
+          .fixedSize()
+        }
+      }
+      Divider()
+      linksSection
+      Divider()
+      updatesSection
+      Divider()
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Notes").scaled(.headline)
+        TextField(
+          "Notes", text: Binding(get: { task.notes ?? "" }, set: { task.notes = $0.isBlank ? nil : $0 }),
+          axis: .vertical
+        )
+        .lineLimit(3...10)
+        .textFieldStyle(.roundedBorder)
+      }
+    }
+    .labelsHidden()
+    .padding(20)
+    .scaledFrame(width: 560)
     .toolbar {
       ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
       ToolbarItem(placement: .confirmationAction) {
@@ -571,6 +607,25 @@ struct EditTaskView: View {
         }
         .disabled(task.title.isBlank)
       }
+    }
+  }
+}
+
+// One row of a sheet's form: a label on the left, the control filling the rest. Placeholders stay inside the
+// fields: in a SwiftUI Form they are taken for labels and pushed out of the sheet.
+struct FormRow<Content: View>: View {
+  let label: String
+  let content: Content
+
+  init(_ label: String, @ViewBuilder content: () -> Content) {
+    self.label = label
+    self.content = content()
+  }
+
+  var body: some View {
+    GridRow {
+      Text(label).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
+      content.textFieldStyle(.roundedBorder).frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 }
@@ -630,7 +685,7 @@ struct ProjectTab: View {
     Button(action: select) {
       HStack(spacing: 5) {
         Text(title).fontWeight(isSelected ? .semibold : .regular).lineLimit(1)
-        if count > 0 { Text("\(count)").font(.caption2).foregroundStyle(.secondary) }
+        if count > 0 { Text("\(count)").scaled(.caption2).foregroundStyle(.secondary) }
       }
       .padding(.horizontal, 10).padding(.vertical, 4)
       .background(Capsule().fill(fill))
@@ -660,20 +715,20 @@ struct AddLinkSheet: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Text("Add a link to #\(task.id) \(task.title)").font(.headline).lineLimit(2)
+      Text("Add a link to #\(task.id) \(task.title)").scaled(.headline).lineLimit(2)
       TextField("https://…", text: $url).onSubmit(submit)
       TextField("Title (optional — a name is made from the address)", text: $title).onSubmit(submit)
       Text("Pull requests, commits and Claude artifacts are recognised; anything else is kept as a plain link.")
-        .font(.caption).foregroundStyle(.secondary)
-      if let error { Text(error).font(.caption).foregroundStyle(.red) }
+        .scaled(.caption).foregroundStyle(.secondary)
+      if let error { Text(error).scaled(.caption).foregroundStyle(.red) }
       HStack {
         Spacer()
         Button("Cancel") { dismiss() }
         Button("Add", action: submit).keyboardShortcut(.defaultAction).disabled(url.isBlank)
       }
     }
-    .padding()
-    .frame(width: 460)
+    .padding(20)
+    .scaledFrame(width: 480)
     .onAppear {
       // A link on the clipboard is the likely thing to add.
       if let text = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),

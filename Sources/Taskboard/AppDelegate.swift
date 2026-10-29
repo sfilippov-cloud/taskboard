@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     updateBadges()
     updateWidgetVisibility()
     NSApp.mainMenu = buildMainMenu()
+    watchTextSizeKey()
     if Self.opensBoardAtLaunch { showBoard() }
 
     hotKeys = [
@@ -212,6 +213,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     edit.addItem(standard("Select All", #selector(NSText.selectAll(_:)), "a"))
     add(edit, title: "Edit")
 
+    let view = NSMenu(title: "View")
+    view.addItem(standard("Bigger Text", #selector(biggerText), "+"))
+    view.addItem(standard("Smaller Text", #selector(smallerText), "-"))
+    view.addItem(standard("Default Text Size", #selector(defaultTextSize), "0"))
+    add(view, title: "View")
+
     let window = NSMenu(title: "Window")
     window.addItem(standard("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"))
     window.addItem(NSMenuItem(title: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: ""))
@@ -221,6 +228,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     add(window, title: "Window")
     NSApp.windowsMenu = window
     return main
+  }
+
+  @objc private func biggerText() { TextScale.shared.larger() }
+  @objc private func smallerText() { TextScale.shared.smaller() }
+  @objc private func defaultTextSize() { TextScale.shared.reset() }
+
+  // ⌘= is the unshifted ⌘+ on most keyboards; the menu item only matches the shifted one.
+  private func watchTextSizeKey() {
+    NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+      guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+        event.charactersIgnoringModifiers == "="
+      else { return event }
+      MainActor.assumeIsolated { TextScale.shared.larger() }
+      return nil
+    }
   }
 
   @objc private func toggleLoginItem() {
@@ -244,7 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
       window.title = "Tasks"
       window.isReleasedWhenClosed = false
-      window.contentView = NSHostingView(rootView: BoardView(model: model))
+      window.contentView = NSHostingView(rootView: BoardView(model: model).textScaled())
       window.setFrameAutosaveName("Board")
       if !window.setFrameUsingName("Board") { window.center() }
       boardWindow = window
@@ -344,6 +366,9 @@ extension AppDelegate: NSMenuItemValidation {
     case #selector(toggleOpenBoardAtLaunch): item.state = Self.opensBoardAtLaunch ? .on : .off
     case #selector(toggleOpenEmailInMail): item.state = MailOpener.usesMail ? .on : .off
     case #selector(toggleRecordingAction): item.title = recorder.isRecording ? "Stop recording" : "Dictate a task"
+    case #selector(biggerText): return TextScale.shared.canGrow
+    case #selector(smallerText): return TextScale.shared.canShrink
+    case #selector(defaultTextSize): return !TextScale.shared.isDefault
     default: break
     }
     return true

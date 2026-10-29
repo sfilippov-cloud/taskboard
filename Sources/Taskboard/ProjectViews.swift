@@ -19,18 +19,18 @@ struct JournalView: View {
       if entries.isEmpty {
         Spacer()
         Text("Nothing here yet. Entries appear on their own as tasks change and as notes and documents come in.")
-          .font(.callout).foregroundStyle(.secondary)
+          .scaled(.callout).foregroundStyle(.secondary)
         Spacer()
       } else {
         List(Array(entries.enumerated()), id: \.offset) { _, entry in
           VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-              Text(entry.date, format: .dateTime.day().month().hour().minute()).font(.caption).foregroundStyle(.secondary)
+              Text(entry.date, format: .dateTime.day().month().hour().minute()).scaled(.caption).foregroundStyle(.secondary)
               if showsProject, let name = entry.project {
-                Text(name).font(.caption2).padding(.horizontal, 6)
+                Text(name).scaled(.caption2).padding(.horizontal, 6)
                   .background(Capsule().fill(Color.accentColor.opacity(0.15)))
               }
-              Image(systemName: CardView.icon(for: entry.source)).font(.caption2).foregroundStyle(.tertiary)
+              Image(systemName: CardView.icon(for: entry.source)).scaled(.caption2).foregroundStyle(.tertiary)
             }
             Text(entry.text).textSelection(.enabled)
           }
@@ -74,7 +74,7 @@ struct DocumentsView: View {
           ? "Inbox: everything dropped on the widget or this window without a project lands here. Claude will read it and file it under a project."
           : "Project documents and notes. Drop a file on the window — Claude will read it and log the gist."
       )
-      .font(.caption).foregroundStyle(.secondary).padding(12)
+      .scaled(.caption).foregroundStyle(.secondary).padding(12)
       if files.isEmpty {
         Spacer()
         HStack {
@@ -123,7 +123,7 @@ struct SyncButton: View {
       if let error = model.sync.lastError(kind), !running {
         Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).help(error)
       } else if let last = model.sync.lastRun(kind), !running {
-        Text("checked \(last, format: .relative(presentation: .numeric))").font(.caption).foregroundStyle(.secondary)
+        Text("checked \(last, format: .relative(presentation: .numeric))").scaled(.caption).foregroundStyle(.secondary)
       }
       Button { model.sync(kind, manual: true) } label: {
         if running {
@@ -151,14 +151,14 @@ struct CheckReportView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text("Last \(kind.title) check — what it looked at").font(.headline)
+      Text("Last \(kind.title) check — what it looked at").scaled(.headline)
       ScrollView {
-        Text(report).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+        Text(report).scaled(.caption, design: .monospaced).textSelection(.enabled)
           .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
     .padding(14)
-    .frame(width: 520, height: 320)
+    .scaledFrame(width: 520, height: 320)
   }
 }
 
@@ -174,12 +174,12 @@ struct ProposalsView: View {
         VStack(spacing: 6) {
           Label("No proposals", systemImage: "checkmark.circle").foregroundStyle(.secondary)
           Text("Tasks and status changes found in your email wait here for your yes or no.")
-            .font(.caption).foregroundStyle(.secondary)
+            .scaled(.caption).foregroundStyle(.secondary)
         }
         Spacer()
       } else {
         HStack {
-          Text("\(board.proposals.count) waiting").font(.headline)
+          Text("\(board.proposals.count) waiting").scaled(.headline)
           Spacer()
           Button("Accept all") { act(board.proposals.map(\.id), accept: true) }
           Button("Reject all", role: .destructive) { act(board.proposals.map(\.id), accept: false) }
@@ -227,7 +227,7 @@ struct ProposalRow: View {
   // where the task lands when accepted — with this row's button, the widget's ✓ or "Accept all".
   private var projectPicker: some View {
     HStack(spacing: 6) {
-      Text("Project").font(.caption2).foregroundStyle(.secondary)
+      Text("Project").scaled(.caption2).foregroundStyle(.secondary)
       Picker(
         "Project", selection: Binding(get: { proposal.project }, set: { setProject($0) })
       ) {
@@ -245,23 +245,23 @@ struct ProposalRow: View {
     HStack(alignment: .top, spacing: 10) {
       VStack(alignment: .leading, spacing: 3) {
         Text(line).fontWeight(.medium)
-        Text(proposal.reason).font(.caption).foregroundStyle(.secondary)
+        Text(proposal.reason).scaled(.caption).foregroundStyle(.secondary)
         if proposal.kind == .addTask, let owner = proposal.owner, owner != "me" {
-          Label("for \(owner)", systemImage: "person").font(.caption2).foregroundStyle(.orange)
+          Label("for \(owner)", systemImage: "person").scaled(.caption2).foregroundStyle(.orange)
         }
-        if let notes = proposal.notes { Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
+        if let notes = proposal.notes { Text(notes).scaled(.caption).foregroundStyle(.secondary).lineLimit(3) }
         if proposal.kind == .addTask { projectPicker }
         HStack(spacing: 6) {
           Image(systemName: proposal.sourceKind == "slack" ? "number" : "envelope")
-            .font(.caption2).foregroundStyle(.tertiary)
+            .scaled(.caption2).foregroundStyle(.tertiary)
           if proposal.kind == .linkTask, let link = proposal.link, let url = URL(string: link.url) {
-            Link("Open \(link.identity)", destination: url).font(.caption2).lineLimit(1)
+            Link("Open \(link.identity)", destination: url).scaled(.caption2).lineLimit(1)
           } else if let subject = proposal.sourceTitle {
             if let link = proposal.sourceLink.flatMap(URL.init(string:)) {
               SourceLink(url: link, mail: proposal.mail) { Text(subject).lineLimit(1) }
-                .buttonStyle(.plain).foregroundStyle(Color.accentColor).font(.caption2)
+                .buttonStyle(.plain).foregroundStyle(Color.accentColor).scaled(.caption2)
             } else {
-              Text(subject).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+              Text(subject).scaled(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
           }
           Spacer()
@@ -297,19 +297,27 @@ struct ProjectForm: View {
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
-    Form {
-      TextField("Name", text: $name)
-      TextField("What the project is about", text: $summary, axis: .vertical).lineLimit(2...6)
-      TextField("Slack channels (#jssi, #deals)", text: $channels, axis: .vertical).lineLimit(1...3)
-        .help("Channels, public or private, that the Slack check reads for this project; comma-separated")
+    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 10) {
+      FormRow("Name") { TextField("Name", text: $name) }
+      FormRow("About") {
+        TextField("About", text: $summary, prompt: Text("What the project is about"), axis: .vertical).lineLimit(2...6)
+      }
+      FormRow("Slack") {
+        TextField("Slack channels", text: $channels, prompt: Text("#jssi, #deals"), axis: .vertical).lineLimit(1...3)
+          .help("Channels, public or private, that the Slack check reads for this project; comma-separated")
+      }
       if case .edit = mode {
-        Picker("Status", selection: $status) {
-          ForEach(ProjectStatus.allCases, id: \.self) { Text($0.title).tag($0) }
+        FormRow("Status") {
+          Picker("Status", selection: $status) {
+            ForEach(ProjectStatus.allCases, id: \.self) { Text($0.title).tag($0) }
+          }
+          .fixedSize()
         }
       }
     }
-    .padding()
-    .frame(width: 440)
+    .labelsHidden()
+    .padding(20)
+    .scaledFrame(width: 460)
     .onAppear {
       if case .edit(let project) = mode {
         name = project.name
@@ -341,14 +349,14 @@ struct NoteSheet: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Text("Note or meeting minutes").font(.headline)
+      Text("Note or meeting minutes").scaled(.headline)
       Text("Claude will read the text, log the gist in the project journal and add tasks where they are explicit.")
-        .font(.caption).foregroundStyle(.secondary)
+        .scaled(.caption).foregroundStyle(.secondary)
       Picker("Project", selection: $slug) {
         Text("Detect from the text").tag(String?.none)
         ForEach(projects) { Text($0.name).tag(Optional($0.slug)) }
       }
-      TextEditor(text: $text).font(.body).frame(minHeight: 220)
+      TextEditor(text: $text).scaled(.body).frame(minHeight: 220)
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.primary.opacity(0.15)))
       HStack {
         Spacer()
@@ -360,8 +368,8 @@ struct NoteSheet: View {
         .keyboardShortcut(.defaultAction).disabled(text.isBlank)
       }
     }
-    .padding()
-    .frame(width: 520)
+    .padding(20)
+    .scaledFrame(width: 520)
     .onAppear { slug = preselected?.slug }
   }
 }
