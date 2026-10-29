@@ -32,7 +32,11 @@ enum Snapshot {
         save("project-form", width: 460 * scale, ProjectForm(mode: .edit(model.board.projects[0])) { _, _, _, _ in })
         save("add-link", width: 480 * scale, AddLinkSheet(task: sample) { _, _ in nil })
         save("widget", width: 300 * scale, WidgetView(model: model, openBoard: {}, hide: {}, resize: { _ in }))
+        CardFolding.shared.show(unfolded: [])
         save("board", width: 1000, height: 640, BoardView(model: model))
+        CardFolding.shared.show(unfolded: [1, sample.id])
+        save("board-unfolded", width: 1000, height: 640, BoardView(model: model))
+        CardFolding.shared.show(unfolded: [])
       }
     }
     return 0

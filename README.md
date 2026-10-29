@@ -24,6 +24,9 @@ A hidden widget shows itself during recording and processing, then hides again.
 Widget: "Doing", then "To do", up to 10 rows; the circle marks a task done, the header opens the board.
 It is hidden from screen recording and sharing (`defaults write com.lozhka13.taskboard widgetCapturable -bool true` shows it).
 Board: drag between columns, double-click to edit, right-click for priority and delete.
+A card is folded to its title (with the flag, the lock and, for someone else's task, an orange person mark); the
+chevron on its left unfolds it in place — notes, latest update, links, project, owner — and folds it back, without
+opening the task window. Which cards are unfolded is remembered between launches.
 "Done" older than a week moves to `archive.jsonl`.
 
 ## Language

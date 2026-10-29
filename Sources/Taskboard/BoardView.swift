@@ -205,6 +205,7 @@ struct ColumnView: View {
   let askLink: (BoardTask) -> Void
   let attach: (Int, String, String?) -> String?
   @State private var targeted = false
+  private let folding = CardFolding.shared
 
   var body: some View {
     let board = model.board
@@ -219,7 +220,10 @@ struct ColumnView: View {
       ScrollView {
         LazyVStack(spacing: 6) {
           ForEach(tasks) { task in
-            CardView(task: task, board: board)
+            CardView(
+              task: task, board: board, isUnfolded: folding.isUnfolded(task.id),
+              toggleFold: { withAnimation(.snappy(duration: 0.2)) { folding.toggle(task.id) } }
+            )
               .draggable(String(task.id))
               .onTapGesture(count: 2) { edit(task) }
               .contextMenu { menu(for: task) }
@@ -280,9 +284,12 @@ struct ColumnView: View {
   }
 }
 
+// A card is folded to its title until its chevron is clicked; unfolded, it shows everything the board knows about the task.
 struct CardView: View {
   let task: BoardTask
   let board: Board
+  let isUnfolded: Bool
+  let toggleFold: () -> Void
 
   static func icon(for source: String) -> String {
     switch source {
@@ -299,19 +306,41 @@ struct CardView: View {
   var body: some View {
     let waiting = board.waitingOn(task)
     VStack(alignment: .leading, spacing: 4) {
-      if let parent = task.parent.flatMap({ board.task($0) }) {
+      if isUnfolded, let parent = task.parent.flatMap({ board.task($0) }) {
         Text("↳ #\(parent.id) \(parent.title)").scaled(.caption2).foregroundStyle(.secondary).lineLimit(1)
       }
-      HStack(alignment: .firstTextBaseline) {
+      HStack(alignment: .firstTextBaseline, spacing: 4) {
+        Button(action: toggleFold) {
+          Image(systemName: isUnfolded ? "chevron.down" : "chevron.right").scaled(.caption2).fontWeight(.semibold)
+            .foregroundStyle(.secondary).scaledFrame(width: 14, height: 14).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).help(isUnfolded ? "Fold to the title" : "Unfold the card")
         if task.column == .todo && !waiting.isEmpty {
           Image(systemName: "lock").foregroundStyle(.secondary).scaled(.caption)
         }
         if task.priority == .high { Image(systemName: "flag.fill").foregroundStyle(.orange).scaled(.caption) }
         Text(task.title).fontWeight(task.priority == .high ? .semibold : .regular)
-          .strikethrough(task.column == .done, color: .secondary)
+          .strikethrough(task.column == .done, color: .secondary).lineLimit(isUnfolded ? nil : 2)
+          .help(isUnfolded ? "" : task.title)
         Spacer(minLength: 0)
+        // Folded, the footer is gone, and with it the orange mark on someone else's task.
+        if !isUnfolded, let owner = task.owner, owner != "me" {
+          Image(systemName: "person").scaled(.caption2).foregroundStyle(Color.orange).help("Someone else's task — owner: \(owner)")
+        }
         Text("#\(task.id)").scaled(.caption2).foregroundStyle(.tertiary)
       }
+      if isUnfolded { details(waiting: waiting) }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor)))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.08)))
+    .contentShape(Rectangle())
+  }
+
+  @ViewBuilder
+  private func details(waiting: [BoardTask]) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
       if let notes = task.notes {
         Text(notes).scaled(.caption).foregroundStyle(.secondary).lineLimit(3)
       }
@@ -340,11 +369,6 @@ struct CardView: View {
         Text(task.updated, format: .relative(presentation: .named)).scaled(.caption2).foregroundStyle(.tertiary)
       }
     }
-    .padding(8)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor)))
-    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.08)))
-    .contentShape(Rectangle())
   }
 }
 
